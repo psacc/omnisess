@@ -21,18 +21,18 @@ const (
 )
 
 type Session struct {
-	ID        string
-	Tool      Tool
-	Project   string // absolute path to project directory
-	Branch    string // git branch if available
-	Title     string // first user message or tool-provided title
-	Summary   string // tool-provided summary (Cursor tldr), empty otherwise
-	Model     string // AI model used
-	StartedAt time.Time
-	UpdatedAt time.Time
-	Active    bool
-	Messages  []Message // populated only by Get(), nil in List()
-	Preview   string    // first user message, truncated ~120 chars
+	ID        string    `json:"ID"`
+	Tool      Tool      `json:"Tool"`
+	Project   string    `json:"Project,omitempty"`
+	Branch    string    `json:"Branch,omitempty"`
+	Title     string    `json:"Title,omitempty"`
+	Summary   string    `json:"Summary,omitempty"`
+	Model     string    `json:"Model,omitempty"`
+	StartedAt time.Time `json:"StartedAt"`
+	UpdatedAt time.Time `json:"UpdatedAt"`
+	Active    bool      `json:"Active"`
+	Messages  []Message `json:"Messages,omitempty"`
+	Preview   string    `json:"Preview,omitempty"`
 }
 
 // QualifiedID returns the tool-prefixed session ID (e.g., "claude:5c3f2742").
