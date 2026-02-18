@@ -1,4 +1,4 @@
-.PHONY: all build test cover cover-html lint vet fmt check clean setup
+.PHONY: all build test cover cover-html lint vet fmt check clean setup merge
 
 # Default: build + vet + lint + test
 all: build vet lint test
@@ -33,6 +33,20 @@ fmt:
 
 # Full pre-commit check: fmt + vet + lint + test
 check: fmt vet lint test
+
+# Squash-merge current branch into main (keeps linear history)
+# Usage: make merge
+merge:
+	@branch=$$(git rev-parse --abbrev-ref HEAD); \
+	if [ "$$branch" = "main" ]; then \
+		echo "error: already on main"; exit 1; \
+	fi; \
+	echo "Squash-merging $$branch into main..."; \
+	git checkout main && \
+	git merge --squash "$$branch" && \
+	git commit && \
+	git branch -D "$$branch" && \
+	echo "Done. $$branch squash-merged into main."
 
 clean:
 	rm -f sessions coverage.out coverage.html

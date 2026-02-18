@@ -65,7 +65,7 @@ Decision (agent-decided): <what and why>
 6. Review    Spawn a reviewer subagent against the branch diff
 7. Address   Fix all findings from review (amend or new commit)
 8. Classify  Two-way door → self-merge. One-way door → push, escalate.
-9. Merge     git checkout main && git merge <branch> && git branch -d <branch>
+9. Merge     make merge (squash-merges branch into main, keeps linear history)
 ```
 
 Steps 2-5 may repeat within a branch. Steps 6-7 may repeat if the reviewer finds new issues after fixes. Each commit should be a coherent, reviewable unit.
@@ -98,7 +98,7 @@ ALL of these must be true:
 - Exec plan status updated (moved to `completed/` if done)
 - No new external dependencies added
 
-If all conditions hold, the agent merges to `main` and deletes the branch. Do not ask a human.
+If all conditions hold, the agent runs `make merge` (squash-merge into main) and verifies. Do not ask a human.
 
 ### One-way door changes (escalate to human)
 
