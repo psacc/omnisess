@@ -74,3 +74,14 @@ Place this in the exec plan under a `## Decisions` section, or in the investigat
 - Two-way agent decisions: recorded in commit messages (searchable via `git log --grep="agent-decided"`)
 - One-way escalations: recorded in exec plans or investigation reports under `## Decisions`
 - Reviewer approvals: recorded in commit messages (`Reviewed (agent-review): <rationale>`)
+
+## 6. Git Workflow
+
+For branch naming, commit conventions, merge rules, and the pre-merge checklist, see [`git-workflow.md`](git-workflow.md).
+
+Key integration points:
+
+- **Review is subagent-driven**: Every branch must be reviewed by a reviewer subagent before merge. Human review is only for one-way door escalations. See `git-workflow.md` Section 5.
+- **Two-way door changes**: after subagent review passes, agent self-merges. Do not ask a human.
+- **One-way door changes**: agent pushes the branch but does NOT merge. Use the escalation format from Section 4 above.
+- **Commit messages**: agent-decided changes must include `Decision (agent-decided): <what and why>` in the commit body.
