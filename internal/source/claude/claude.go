@@ -191,10 +191,10 @@ func sessionFileUpdatedAt(path string) (time.Time, bool) {
 // Messages are NOT populated.
 //
 // Two-pass strategy:
-// 1. Load sessions from history.jsonl (the standard index).
-// 2. Scan ~/.claude/projects/*/*.jsonl for orphan session files that are
-//    NOT in history.jsonl (e.g., sessions started from Cursor's embedded
-//    Claude Code or other contexts that skip the history index).
+//  1. Load sessions from history.jsonl (the standard index).
+//  2. Scan ~/.claude/projects/*/*.jsonl for orphan session files that are
+//     NOT in history.jsonl (e.g., sessions started from Cursor's embedded
+//     Claude Code or other contexts that skip the history index).
 func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 	entries, err := loadHistory()
 	if err != nil {

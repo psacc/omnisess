@@ -11,6 +11,86 @@ import (
 	"github.com/psacconier/sessions/internal/model"
 )
 
+// sanitizeString strips C0 control characters (U+0000-U+001F) that are not
+// tab, newline, or carriage return. These characters have no semantic value
+// in session content (ANSI escapes, null bytes, bell, etc.) and can cause
+// issues with strict JSON parsers in downstream consumers like Python.
+//
+// NOTE: DEL (U+007F) and C1 controls (U+0080-U+009F) are left as-is;
+// extend here if downstream parsers choke on those too.
+func sanitizeString(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r < 0x20 && r != '\t' && r != '\n' && r != '\r' {
+			return -1 // drop the rune
+		}
+		return r
+	}, s)
+}
+
+// sanitizeSession returns a deep copy of the session with all string
+// fields sanitized for safe JSON output. The original session is not modified.
+func sanitizeSession(s *model.Session) model.Session {
+	out := *s
+	out.Title = sanitizeString(out.Title)
+	out.Summary = sanitizeString(out.Summary)
+	out.Preview = sanitizeString(out.Preview)
+	out.Project = sanitizeString(out.Project)
+	out.Branch = sanitizeString(out.Branch)
+	out.Model = sanitizeString(out.Model)
+
+	if len(s.Messages) > 0 {
+		out.Messages = make([]model.Message, len(s.Messages))
+		for i, m := range s.Messages {
+			out.Messages[i] = model.Message{
+				Role:      m.Role,
+				Content:   sanitizeString(m.Content),
+				Timestamp: m.Timestamp,
+			}
+			if len(m.ToolCalls) > 0 {
+				out.Messages[i].ToolCalls = make([]model.ToolCall, len(m.ToolCalls))
+				for j, tc := range m.ToolCalls {
+					out.Messages[i].ToolCalls[j] = model.ToolCall{
+						Name:   sanitizeString(tc.Name),
+						Input:  sanitizeString(tc.Input),
+						Output: sanitizeString(tc.Output),
+					}
+				}
+			}
+		}
+	}
+
+	return out
+}
+
+// sanitizeSearchResults returns a sanitized copy of search results for
+// safe JSON output.
+func sanitizeSearchResults(results []model.SearchResult) []model.SearchResult {
+	out := make([]model.SearchResult, len(results))
+	for i, r := range results {
+		out[i] = model.SearchResult{
+			Session: sanitizeSession(&r.Session),
+			Matches: make([]model.SearchMatch, len(r.Matches)),
+		}
+		for j, m := range r.Matches {
+			out[i].Matches[j] = model.SearchMatch{
+				MessageIndex: m.MessageIndex,
+				Snippet:      sanitizeString(m.Snippet),
+				Role:         m.Role,
+			}
+		}
+	}
+	return out
+}
+
+// sanitizeSessions returns a sanitized copy of sessions for safe JSON output.
+func sanitizeSessions(sessions []model.Session) []model.Session {
+	out := make([]model.Session, len(sessions))
+	for i := range sessions {
+		out[i] = sanitizeSession(&sessions[i])
+	}
+	return out
+}
+
 // Format represents the output format.
 type Format string
 
@@ -23,7 +103,7 @@ const (
 func RenderSessions(sessions []model.Session, format Format) {
 	switch format {
 	case FormatJSON:
-		renderJSON(os.Stdout, sessions)
+		renderJSON(os.Stdout, sanitizeSessions(sessions))
 	default:
 		renderTable(os.Stdout, sessions)
 	}
@@ -33,9 +113,10 @@ func RenderSessions(sessions []model.Session, format Format) {
 func RenderSession(session *model.Session, format Format) {
 	switch format {
 	case FormatJSON:
+		sanitized := sanitizeSession(session)
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		enc.Encode(session)
+		enc.Encode(sanitized)
 	default:
 		renderSessionDetail(os.Stdout, session)
 	}
@@ -47,7 +128,7 @@ func RenderSearchResults(results []model.SearchResult, format Format) {
 	case FormatJSON:
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		enc.Encode(results)
+		enc.Encode(sanitizeSearchResults(results))
 	default:
 		renderSearchTable(os.Stdout, results)
 	}
