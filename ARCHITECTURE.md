@@ -1,5 +1,8 @@
 # Architecture
 
+> Entry point: [`CLAUDE.md`](CLAUDE.md) — project overview, dev process, conventions.
+> Design decisions: [`docs/design-docs/`](docs/design-docs/index.md) | Exec plans: [`docs/exec-plans/`](docs/exec-plans/)
+
 ## Data Flow
 
 ```
@@ -34,7 +37,7 @@ Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.gemini/)
 - **internal/source/gemini/** — Stub. Returns empty results.
 - **internal/detect/process.go** — `IsProcessRunning(name)` and `IsFileRecentlyModified(path, threshold)`.
 - **internal/output/render.go** — `RenderTable()` and `RenderJSON()` dispatched by format flag.
-- **internal/search/search.go** — Orchestrates parallel search across sources, merges and ranks results.
+- **~~internal/search/search.go~~** — Planned, not yet implemented. Search currently lives in `cmd/search.go`.
 
 ## Invariants
 
