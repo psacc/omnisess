@@ -5,3 +5,4 @@
 | Doc | Status | Summary |
 | --- | --- | --- |
 | [`source-interface.md`](source-interface.md) | Active | Source interface contract and method semantics |
+| [`../process/agent-review.md`](../process/agent-review.md) | Active | Agent-to-agent review: decision classification and autonomous resolution rules |
