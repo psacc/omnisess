@@ -1,0 +1,3 @@
+{"type":"user","message":{"role":"user","content":"explain the architecture"},"uuid":"u1","timestamp":"2024-02-15T10:00:00.000Z","cwd":"/Users/foo/myproject","gitBranch":"main"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"The architecture has three layers:"},{"type":"text","text":"1. API layer\n2. Service layer\n3. Data layer"}]},"uuid":"a1","timestamp":"2024-02-15T10:00:05.000Z","model":"claude-sonnet-4-20250514","costUSD":0.02,"durationMs":2500,"stopReason":"end_turn"}
+{"type":"summary","message":{"role":"assistant","content":"Context summary..."},"uuid":"s1","timestamp":"2024-02-15T10:05:00.000Z"}

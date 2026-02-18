@@ -21,33 +21,22 @@ type historyEntry struct {
 
 // sessionLine represents a single line in a session JSONL file.
 type sessionLine struct {
-	Type      string          `json:"type"`
-	Message   json.RawMessage `json:"message"`
-	UUID      string          `json:"uuid"`
-	Timestamp string          `json:"timestamp"` // ISO 8601
-	Model     string          `json:"model"`
-	CostUSD   float64         `json:"costUSD"`
-	DurationMs int64          `json:"durationMs"`
-	StopReason string         `json:"stopReason"`
-	CWD       string          `json:"cwd"`
-	GitBranch string          `json:"gitBranch"`
+	Type       string          `json:"type"`
+	Message    json.RawMessage `json:"message"`
+	UUID       string          `json:"uuid"`
+	Timestamp  string          `json:"timestamp"` // ISO 8601
+	Model      string          `json:"model"`
+	CostUSD    float64         `json:"costUSD"`
+	DurationMs int64           `json:"durationMs"`
+	StopReason string          `json:"stopReason"`
+	CWD        string          `json:"cwd"`
+	GitBranch  string          `json:"gitBranch"`
 }
 
 // messagePayload holds the role and content from the "message" field.
 type messagePayload struct {
 	Role    string      `json:"role"`
 	Content interface{} `json:"content"`
-}
-
-// contentBlock represents a content block in assistant messages.
-type contentBlock struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-	// tool_use blocks
-	Name  string          `json:"name,omitempty"`
-	Input json.RawMessage `json:"input,omitempty"`
-	// tool_result blocks
-	Content interface{} `json:"content,omitempty"`
 }
 
 // parseHistoryLine parses a single line from history.jsonl into a historyEntry.
