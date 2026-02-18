@@ -73,10 +73,12 @@ See [`docs/dev-harness.md`](docs/dev-harness.md) for the full development harnes
 
 1. **Orient** -- Read this file + `docs/exec-plans/active/` to find the next task
 2. **Plan** -- If the task is non-trivial, write or update an exec plan in `docs/exec-plans/active/`
-3. **Implement** -- Write code. Follow the invariants above. Keep source packages isolated.
-4. **Verify** -- `make check` (or: `go build -o sessions . && go vet ./... && go test ./...`)
-5. **Smoke test** -- Run the relevant `sessions` subcommand against real local data
-6. **Complete** -- Move finished exec plans to `docs/exec-plans/completed/`, update `ARCHITECTURE.md` if the codemap changed
+3. **Branch** -- Create a branch per [`docs/process/git-workflow.md`](docs/process/git-workflow.md) (doc-only changes may go directly to main)
+4. **Implement** -- Write code. Follow the invariants above. Keep source packages isolated.
+5. **Verify** -- `make check` (or: `go build -o sessions . && go vet ./... && go test ./...`)
+6. **Smoke test** -- Run the relevant `sessions` subcommand against real local data
+7. **Commit & merge** -- Follow the review and merge rules in [`docs/process/git-workflow.md`](docs/process/git-workflow.md)
+8. **Complete** -- Move finished exec plans to `docs/exec-plans/completed/`, update `ARCHITECTURE.md` if the codemap changed
 
 ### Adding a new Source
 
