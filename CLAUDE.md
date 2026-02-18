@@ -93,6 +93,7 @@ See [`docs/dev-harness.md`](docs/dev-harness.md) for the full development harnes
 - **Tests**: Table-driven tests with `testdata/` fixtures for parser packages. See `docs/dev-harness.md`.
 - **Errors**: return `nil, nil` for "not found" (empty result), `nil, error` for actual failures. Log warnings to stderr for non-fatal issues (corrupt entries, missing files).
 - **Exec plans** live in `docs/exec-plans/active/` (numbered `NNN-slug.md`). Move to `completed/` when done.
+- **Decision rules**: See [`docs/process/agent-review.md`](docs/process/agent-review.md) for agent-to-agent review and autonomous decision-making rules.
 
 ## Key Files
 
