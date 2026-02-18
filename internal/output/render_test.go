@@ -476,3 +476,182 @@ func TestRenderSearchResults_JSON(t *testing.T) {
 		t.Error("expected session ID in search results JSON output")
 	}
 }
+
+func TestSanitizeString(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "empty string",
+			input: "",
+			want:  "",
+		},
+		{
+			name:  "clean string unchanged",
+			input: "hello world",
+			want:  "hello world",
+		},
+		{
+			name:  "preserves tab newline carriage return",
+			input: "line1\tindented\nline2\rline3",
+			want:  "line1\tindented\nline2\rline3",
+		},
+		{
+			name:  "strips null byte",
+			input: "hello\x00world",
+			want:  "helloworld",
+		},
+		{
+			name:  "strips ANSI escape sequence",
+			input: "hello\x1b[31mred\x1b[0m",
+			want:  "hello[31mred[0m",
+		},
+		{
+			name:  "strips bell character",
+			input: "alert\x07here",
+			want:  "alerthere",
+		},
+		{
+			name:  "strips backspace",
+			input: "back\x08space",
+			want:  "backspace",
+		},
+		{
+			name:  "strips form feed and vertical tab",
+			input: "form\x0cfeed\x0bvtab",
+			want:  "formfeedvtab",
+		},
+		{
+			name:  "strips all non-printable control chars",
+			input: "\x00\x01\x02\x03\x04\x05\x06\x07\x08keep\x09\x0akeep\x0b\x0c\x0dkeep\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f",
+			want:  "keep\t\nkeep\rkeep",
+		},
+		{
+			name:  "preserves unicode",
+			input: "caf\u00e9 \u2603 \U0001F600",
+			want:  "caf\u00e9 \u2603 \U0001F600",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeString(tt.input)
+			if got != tt.want {
+				t.Errorf("sanitizeString(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSanitizeSession(t *testing.T) {
+	sess := &model.Session{
+		ID:      "test-id",
+		Tool:    model.ToolClaude,
+		Title:   "title with \x00null",
+		Preview: "preview with \x1bescape",
+		Project: "/clean/path",
+		Branch:  "feat/\x07bell-branch",
+		Model:   "claude-\x00opus",
+		Messages: []model.Message{
+			{
+				Role:    model.RoleUser,
+				Content: "content with \x07bell and \x1b[31mANSI\x1b[0m",
+			},
+			{
+				Role:    model.RoleAssistant,
+				Content: "clean content",
+				ToolCalls: []model.ToolCall{
+					{
+						Name:   "Read\x00File",
+						Input:  "input with \x00null",
+						Output: "output with \x08backspace",
+					},
+				},
+			},
+		},
+	}
+
+	sanitized := sanitizeSession(sess)
+
+	// Original should not be modified.
+	if sess.Title != "title with \x00null" {
+		t.Error("sanitizeSession modified the original session Title")
+	}
+	if sess.Messages[0].Content != "content with \x07bell and \x1b[31mANSI\x1b[0m" {
+		t.Error("sanitizeSession modified the original message Content")
+	}
+
+	// Sanitized copy should have control chars stripped.
+	if sanitized.Title != "title with null" {
+		t.Errorf("expected sanitized title, got %q", sanitized.Title)
+	}
+	if sanitized.Preview != "preview with escape" {
+		t.Errorf("expected sanitized preview, got %q", sanitized.Preview)
+	}
+	if sanitized.Branch != "feat/bell-branch" {
+		t.Errorf("expected sanitized branch, got %q", sanitized.Branch)
+	}
+	if sanitized.Model != "claude-opus" {
+		t.Errorf("expected sanitized model, got %q", sanitized.Model)
+	}
+	if sanitized.Messages[0].Content != "content with bell and [31mANSI[0m" {
+		t.Errorf("expected sanitized message content, got %q", sanitized.Messages[0].Content)
+	}
+	if sanitized.Messages[1].ToolCalls[0].Name != "ReadFile" {
+		t.Errorf("expected sanitized tool call name, got %q", sanitized.Messages[1].ToolCalls[0].Name)
+	}
+	if sanitized.Messages[1].ToolCalls[0].Input != "input with null" {
+		t.Errorf("expected sanitized tool call input, got %q", sanitized.Messages[1].ToolCalls[0].Input)
+	}
+	if sanitized.Messages[1].ToolCalls[0].Output != "output with backspace" {
+		t.Errorf("expected sanitized tool call output, got %q", sanitized.Messages[1].ToolCalls[0].Output)
+	}
+}
+
+func TestSanitizeSession_JSONRoundTrip(t *testing.T) {
+	// Simulate the worst case: session with all control chars in content.
+	content := "start"
+	for c := 0; c < 0x20; c++ {
+		content += string(rune(c))
+	}
+	content += "end"
+
+	sess := &model.Session{
+		ID:   "roundtrip-test",
+		Tool: model.ToolClaude,
+		Messages: []model.Message{
+			{
+				Role:    model.RoleUser,
+				Content: content,
+			},
+		},
+	}
+
+	sanitized := sanitizeSession(sess)
+
+	// Encode to JSON.
+	jsonBytes, err := json.Marshal(sanitized)
+	if err != nil {
+		t.Fatalf("json.Marshal failed: %v", err)
+	}
+
+	// Verify it's valid JSON.
+	if !json.Valid(jsonBytes) {
+		t.Fatalf("sanitized session produced invalid JSON: %s", string(jsonBytes))
+	}
+
+	// Verify it round-trips cleanly.
+	var parsed model.Session
+	if err := json.Unmarshal(jsonBytes, &parsed); err != nil {
+		t.Fatalf("json.Unmarshal failed: %v\nJSON: %s", err, string(jsonBytes))
+	}
+
+	// The content should have tab, newline, carriage return preserved,
+	// and all other control chars stripped.
+	wantContent := "start\t\n\rend"
+	if parsed.Messages[0].Content != wantContent {
+		t.Errorf("round-trip content = %q, want %q", parsed.Messages[0].Content, wantContent)
+	}
+}
