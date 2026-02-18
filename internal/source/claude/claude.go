@@ -189,15 +189,27 @@ func sessionFileUpdatedAt(path string) (time.Time, bool) {
 
 // List returns sessions ordered by most recent first.
 // Messages are NOT populated.
+//
+// Two-pass strategy:
+// 1. Load sessions from history.jsonl (the standard index).
+// 2. Scan ~/.claude/projects/*/*.jsonl for orphan session files that are
+//    NOT in history.jsonl (e.g., sessions started from Cursor's embedded
+//    Claude Code or other contexts that skip the history index).
 func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 	entries, err := loadHistory()
 	if err != nil {
 		return nil, fmt.Errorf("list claude sessions: %w", err)
 	}
 
+	// Track seen session IDs to avoid duplicates in the orphan scan.
+	seenIDs := make(map[string]bool, len(entries))
+
 	var sessions []model.Session
 
+	// --- Pass 1: history.jsonl entries ---
 	for _, entry := range entries {
+		seenIDs[entry.SessionID] = true
+
 		// Find the session file
 		var sessionFilePath string
 		if entry.Project != "" {
@@ -261,13 +273,166 @@ func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 		}
 
 		sessions = append(sessions, sess)
+	}
 
-		if opts.Limit > 0 && len(sessions) >= opts.Limit {
-			break
+	// --- Pass 2: orphan session files on disk ---
+	orphans, err := findOrphanSessions(seenIDs)
+	if err != nil {
+		log.Printf("warning: scanning orphan sessions: %v", err)
+	}
+
+	for _, orphan := range orphans {
+		updatedAt := orphan.UpdatedAt
+
+		active := detect.IsSessionActive("claude", orphan.FilePath)
+
+		// Apply filters
+		if opts.Active && !active {
+			continue
 		}
+		if opts.Since > 0 && time.Since(updatedAt) > opts.Since {
+			continue
+		}
+		if opts.Project != "" && !strings.Contains(orphan.Project, opts.Project) {
+			continue
+		}
+
+		sess := model.Session{
+			ID:        orphan.SessionID,
+			Tool:      model.ToolClaude,
+			Project:   orphan.Project,
+			Title:     orphan.Preview,
+			StartedAt: orphan.UpdatedAt, // best we have
+			UpdatedAt: updatedAt,
+			Active:    active,
+			Preview:   orphan.Preview,
+			Branch:    orphan.Branch,
+			Model:     orphan.Model,
+		}
+
+		sessions = append(sessions, sess)
+	}
+
+	// Sort all sessions (history + orphans) by UpdatedAt descending.
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i].UpdatedAt.After(sessions[j].UpdatedAt)
+	})
+
+	// Apply limit after sorting the merged list.
+	if opts.Limit > 0 && len(sessions) > opts.Limit {
+		sessions = sessions[:opts.Limit]
 	}
 
 	return sessions, nil
+}
+
+// orphanSession holds data for a session file found on disk but not in history.jsonl.
+type orphanSession struct {
+	SessionID string
+	Project   string
+	FilePath  string
+	UpdatedAt time.Time
+	Preview   string
+	Branch    string
+	Model     string
+}
+
+// findOrphanSessions scans ~/.claude/projects/*/*.jsonl for session files
+// whose IDs are not in the seenIDs set. For each orphan, it extracts
+// metadata from the file without parsing it fully.
+func findOrphanSessions(seenIDs map[string]bool) ([]orphanSession, error) {
+	dir, err := claudeDir()
+	if err != nil {
+		return nil, err
+	}
+
+	projectsDir := filepath.Join(dir, "projects")
+	pattern := filepath.Join(projectsDir, "*", "*.jsonl")
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("glob orphan sessions: %w", err)
+	}
+
+	var orphans []orphanSession
+	for _, match := range matches {
+		sessionID := extractSessionIDFromPath(match)
+		if sessionID == "" || seenIDs[sessionID] {
+			continue
+		}
+
+		// Mark as seen to avoid duplicates across project dirs.
+		seenIDs[sessionID] = true
+
+		// Derive project path from the parent directory name.
+		parentDirName := filepath.Base(filepath.Dir(match))
+		project := projectPathFromDir(parentDirName)
+
+		// Get file modification time for UpdatedAt.
+		updatedAt := time.Time{}
+		if modTime, ok := sessionFileUpdatedAt(match); ok {
+			updatedAt = modTime
+		}
+
+		// Extract metadata (branch, model) from first few lines.
+		branch, mdl := peekSessionMetadata(match)
+
+		// Extract preview from first user message.
+		preview := peekFirstUserMessage(match)
+
+		orphans = append(orphans, orphanSession{
+			SessionID: sessionID,
+			Project:   project,
+			FilePath:  match,
+			UpdatedAt: updatedAt,
+			Preview:   preview,
+			Branch:    branch,
+			Model:     mdl,
+		})
+	}
+
+	return orphans, nil
+}
+
+// peekFirstUserMessage reads up to ~20 lines of a session file and returns
+// the content of the first user message, truncated for use as a preview.
+func peekFirstUserMessage(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 256*1024), 2*1024*1024)
+	linesRead := 0
+	for scanner.Scan() && linesRead < 20 {
+		linesRead++
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+
+		var sl sessionLine
+		if err := jsonUnmarshalFast(line, &sl); err != nil {
+			continue
+		}
+
+		if sl.Type != "user" {
+			continue
+		}
+
+		// Parse the message payload to extract content.
+		var payload messagePayload
+		if err := jsonUnmarshalFast(sl.Message, &payload); err != nil {
+			continue
+		}
+
+		content := extractContent(payload.Content)
+		if content != "" {
+			return detect.Truncate(content, 120)
+		}
+	}
+	return ""
 }
 
 // peekSessionMetadata reads the first few lines of a session file to extract

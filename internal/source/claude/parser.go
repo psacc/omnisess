@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -214,18 +215,127 @@ func parseTimestamp(s string) time.Time {
 }
 
 // projectDirName converts an absolute project path to the Claude directory name.
-// /Users/foo/bar -> -Users-foo-bar
+// /Users/paolo.sacconier/prj/foo -> -Users-paolo-sacconier-prj-foo
 func projectDirName(projectPath string) string {
-	return strings.ReplaceAll(projectPath, "/", "-")
+	encoded := strings.ReplaceAll(projectPath, "/", "-")
+	encoded = strings.ReplaceAll(encoded, ".", "-")
+	return encoded
+}
+
+// encodeDirComponent encodes a single directory component the way Claude does:
+// replace "." with "-".
+func encodeDirComponent(name string) string {
+	return strings.ReplaceAll(name, ".", "-")
 }
 
 // projectPathFromDir converts a Claude project directory name back to an absolute path.
-// -Users-foo-bar -> /Users/foo/bar
+// -Users-paolo-sacconier-prj-finn-b2b-orders-api -> /Users/paolo.sacconier/prj/finn/b2b-orders-api
+//
+// Because Claude encodes both "/" and "." as "-", naive replacement corrupts
+// paths that contain hyphens or dots. This function uses a greedy filesystem
+// walk: at each directory level it reads the actual children and matches the
+// longest encoded prefix, correctly resolving ambiguity.
+//
+// Falls back to naive decode if the greedy walk fails (e.g., directory no
+// longer exists on disk).
 func projectPathFromDir(dirName string) string {
 	if dirName == "" {
 		return ""
 	}
-	// The dir name starts with "-" which corresponds to the leading "/"
-	// Replace all "-" with "/"
-	return strings.ReplaceAll(dirName, "-", "/")
+
+	// Strip the leading "-" that corresponds to the root "/".
+	encoded := strings.TrimPrefix(dirName, "-")
+	if encoded == "" {
+		return "/"
+	}
+
+	// Use the home directory as an anchor to speed up the walk:
+	// most paths start with the home dir.
+	homeDir, err := os.UserHomeDir()
+	if err == nil {
+		homeEncoded := encodePathForClaude(homeDir)
+		if encoded == homeEncoded {
+			return homeDir
+		}
+		if strings.HasPrefix(encoded, homeEncoded+"-") {
+			suffix := strings.TrimPrefix(encoded, homeEncoded+"-")
+			if result := resolvePathGreedyClaude(homeDir, suffix); result != "" {
+				return result
+			}
+		}
+	}
+
+	// Full walk from root.
+	if result := resolvePathGreedyClaude("/", encoded); result != "" {
+		return result
+	}
+
+	// Fallback: naive decode (replace all "-" with "/").
+	return "/" + strings.ReplaceAll(encoded, "-", "/")
+}
+
+// encodePathForClaude encodes a path the way Claude does:
+// strip leading "/", replace "/" and "." with "-".
+func encodePathForClaude(p string) string {
+	encoded := strings.TrimPrefix(p, "/")
+	encoded = strings.ReplaceAll(encoded, "/", "-")
+	encoded = strings.ReplaceAll(encoded, ".", "-")
+	return encoded
+}
+
+// resolvePathGreedyClaude walks the filesystem greedily to decode an encoded
+// suffix back into a real path. At each directory level it lists children,
+// encodes each child name, and picks the longest match against the remaining
+// encoded string. This correctly handles directories whose real names contain
+// hyphens or dots.
+func resolvePathGreedyClaude(base string, encoded string) string {
+	if encoded == "" {
+		return base
+	}
+
+	entries, err := os.ReadDir(base)
+	if err != nil {
+		return ""
+	}
+
+	type candidate struct {
+		path      string
+		remaining string
+	}
+	var candidates []candidate
+
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		childEncoded := encodeDirComponent(e.Name())
+		if encoded == childEncoded {
+			// Exact full match.
+			return filepath.Join(base, e.Name())
+		}
+		if strings.HasPrefix(encoded, childEncoded+"-") {
+			remaining := strings.TrimPrefix(encoded, childEncoded+"-")
+			candidates = append(candidates, candidate{
+				path:      filepath.Join(base, e.Name()),
+				remaining: remaining,
+			})
+		}
+	}
+
+	// Sort by longest match first (shortest remaining).
+	for i := 0; i < len(candidates); i++ {
+		for j := i + 1; j < len(candidates); j++ {
+			if len(candidates[j].remaining) < len(candidates[i].remaining) {
+				candidates[i], candidates[j] = candidates[j], candidates[i]
+			}
+		}
+	}
+
+	for _, c := range candidates {
+		if result := resolvePathGreedyClaude(c.path, c.remaining); result != "" {
+			return result
+		}
+	}
+
+	return ""
 }
