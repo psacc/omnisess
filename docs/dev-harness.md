@@ -86,6 +86,16 @@ For complex output validation, compare against golden files:
 
 (Not yet implemented -- use string matching for now.)
 
+### TUI rendering tests
+
+TUI features require boundary-aware testing beyond structural checks:
+
+1. **Width budget test**: Assert that rendered row width <= `m.width` at 80 and 120 columns
+2. **Empty field tests**: Every displayed field must be tested with `""` — previews, projects, tools
+3. **External CLI integration**: When exec'ing external tools, test CWD/env assumptions (e.g., `claude --resume` scopes to CWD)
+
+See [`docs/process/tui-quality-gates.md`](process/tui-quality-gates.md) for full post-mortem.
+
 ### Adding tests for a new source
 
 1. Create `internal/source/<name>/testdata/` with fixture files
