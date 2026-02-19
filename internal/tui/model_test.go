@@ -44,6 +44,14 @@ func testSessions() []model.Session {
 	}
 }
 
+// testToolModes returns tool mode mappings matching Claude and Cursor resumers.
+func testToolModes() map[model.Tool][]string {
+	return map[model.Tool][]string{
+		model.ToolClaude: {"resume", "fork", "tmux", "aoe"},
+		model.ToolCursor: {"resume", "tmux", "aoe"},
+	}
+}
+
 func keyMsg(s string) tea.KeyMsg {
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
 }
@@ -56,70 +64,180 @@ func TestUpdate(t *testing.T) {
 	tests := []struct {
 		name        string
 		sessions    []model.Session
+		toolModes   map[model.Tool][]string
 		keys        []tea.Msg // sequence of messages to send
 		wantCursor  int
 		wantSelect  bool       // expect selected != nil
 		wantTool    model.Tool // expected selected session's tool (if wantSelect)
+		wantMode    string     // expected selectedMode
 		wantQuit    bool
 		wantMessage string // expected inline message
 	}{
 		{
 			name:       "down moves cursor",
 			sessions:   testSessions(),
+			toolModes:  testToolModes(),
 			keys:       []tea.Msg{keyMsg("j")},
 			wantCursor: 1,
 		},
 		{
 			name:       "up moves cursor",
 			sessions:   testSessions(),
+			toolModes:  testToolModes(),
 			keys:       []tea.Msg{keyMsg("j"), keyMsg("j"), keyMsg("k")},
 			wantCursor: 1,
 		},
 		{
 			name:       "down arrow moves cursor",
 			sessions:   testSessions(),
+			toolModes:  testToolModes(),
 			keys:       []tea.Msg{specialKeyMsg(tea.KeyDown)},
 			wantCursor: 1,
 		},
 		{
 			name:       "up arrow moves cursor",
 			sessions:   testSessions(),
+			toolModes:  testToolModes(),
 			keys:       []tea.Msg{specialKeyMsg(tea.KeyDown), specialKeyMsg(tea.KeyUp)},
 			wantCursor: 0,
 		},
 		{
 			name:       "cursor clamps at top",
 			sessions:   testSessions(),
+			toolModes:  testToolModes(),
 			keys:       []tea.Msg{keyMsg("k"), keyMsg("k"), keyMsg("k")},
 			wantCursor: 0,
 		},
 		{
 			name:       "cursor clamps at bottom",
 			sessions:   testSessions(),
+			toolModes:  testToolModes(),
 			keys:       []tea.Msg{keyMsg("j"), keyMsg("j"), keyMsg("j"), keyMsg("j"), keyMsg("j")},
 			wantCursor: 2, // 3 sessions, max index = 2
 		},
 		{
-			name:       "enter on claude session selects",
+			name:       "enter on claude session selects with resume mode",
 			sessions:   testSessions(),
+			toolModes:  testToolModes(),
 			keys:       []tea.Msg{specialKeyMsg(tea.KeyEnter)},
 			wantCursor: 0,
 			wantSelect: true,
 			wantTool:   model.ToolClaude,
+			wantMode:   "resume",
 			wantQuit:   true,
 		},
 		{
-			name:        "enter on non-claude session shows message",
+			name:       "enter on cursor session selects with resume mode",
+			sessions:   testSessions(),
+			toolModes:  testToolModes(),
+			keys:       []tea.Msg{keyMsg("j"), specialKeyMsg(tea.KeyEnter)},
+			wantCursor: 1,
+			wantSelect: true,
+			wantTool:   model.ToolCursor,
+			wantMode:   "resume",
+			wantQuit:   true,
+		},
+		{
+			name:        "enter on tool without resume shows message",
 			sessions:    testSessions(),
-			keys:        []tea.Msg{keyMsg("j"), specialKeyMsg(tea.KeyEnter)},
+			toolModes:   map[model.Tool][]string{}, // no modes registered
+			keys:        []tea.Msg{specialKeyMsg(tea.KeyEnter)},
+			wantCursor:  0,
+			wantSelect:  false,
+			wantQuit:    false,
+			wantMessage: "resume not supported for claude",
+		},
+		{
+			name:       "t key selects tmux mode on claude",
+			sessions:   testSessions(),
+			toolModes:  testToolModes(),
+			keys:       []tea.Msg{keyMsg("t")},
+			wantCursor: 0,
+			wantSelect: true,
+			wantTool:   model.ToolClaude,
+			wantMode:   "tmux",
+			wantQuit:   true,
+		},
+		{
+			name:       "t key selects tmux mode on cursor",
+			sessions:   testSessions(),
+			toolModes:  testToolModes(),
+			keys:       []tea.Msg{keyMsg("j"), keyMsg("t")},
+			wantCursor: 1,
+			wantSelect: true,
+			wantTool:   model.ToolCursor,
+			wantMode:   "tmux",
+			wantQuit:   true,
+		},
+		{
+			name:       "a key selects aoe mode (always available)",
+			sessions:   testSessions(),
+			toolModes:  testToolModes(),
+			keys:       []tea.Msg{keyMsg("a")},
+			wantCursor: 0,
+			wantSelect: true,
+			wantTool:   model.ToolClaude,
+			wantMode:   "aoe",
+			wantQuit:   true,
+		},
+		{
+			name:       "a key selects aoe even with no tool modes",
+			sessions:   testSessions(),
+			toolModes:  map[model.Tool][]string{},
+			keys:       []tea.Msg{keyMsg("a")},
+			wantCursor: 0,
+			wantSelect: true,
+			wantTool:   model.ToolClaude,
+			wantMode:   "aoe",
+			wantQuit:   true,
+		},
+		{
+			name:       "f key selects fork mode on claude",
+			sessions:   testSessions(),
+			toolModes:  testToolModes(),
+			keys:       []tea.Msg{keyMsg("f")},
+			wantCursor: 0,
+			wantSelect: true,
+			wantTool:   model.ToolClaude,
+			wantMode:   "fork",
+			wantQuit:   true,
+		},
+		{
+			name:        "f key on cursor shows unsupported message",
+			sessions:    testSessions(),
+			toolModes:   testToolModes(),
+			keys:        []tea.Msg{keyMsg("j"), keyMsg("f")},
 			wantCursor:  1,
 			wantSelect:  false,
 			wantQuit:    false,
-			wantMessage: "resume not supported for cursor",
+			wantMessage: "fork not supported for cursor",
+		},
+		{
+			name:       "o key selects open mode on claude",
+			sessions:   testSessions(),
+			toolModes:  testToolModes(),
+			keys:       []tea.Msg{keyMsg("o")},
+			wantCursor: 0,
+			wantSelect: true,
+			wantTool:   model.ToolClaude,
+			wantMode:   "open",
+			wantQuit:   true,
+		},
+		{
+			name:       "o key selects open even with no tool modes",
+			sessions:   testSessions(),
+			toolModes:  map[model.Tool][]string{},
+			keys:       []tea.Msg{keyMsg("o")},
+			wantCursor: 0,
+			wantSelect: true,
+			wantTool:   model.ToolClaude,
+			wantMode:   "open",
+			wantQuit:   true,
 		},
 		{
 			name:       "q quits without selection",
 			sessions:   testSessions(),
+			toolModes:  testToolModes(),
 			keys:       []tea.Msg{keyMsg("q")},
 			wantCursor: 0,
 			wantSelect: false,
@@ -128,6 +246,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:       "esc quits without selection",
 			sessions:   testSessions(),
+			toolModes:  testToolModes(),
 			keys:       []tea.Msg{specialKeyMsg(tea.KeyEsc)},
 			wantCursor: 0,
 			wantSelect: false,
@@ -136,6 +255,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:       "ctrl+c quits without selection",
 			sessions:   testSessions(),
+			toolModes:  testToolModes(),
 			keys:       []tea.Msg{specialKeyMsg(tea.KeyCtrlC)},
 			wantCursor: 0,
 			wantSelect: false,
@@ -144,6 +264,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:       "enter on empty sessions does nothing",
 			sessions:   nil,
+			toolModes:  testToolModes(),
 			keys:       []tea.Msg{specialKeyMsg(tea.KeyEnter)},
 			wantCursor: 0,
 			wantSelect: false,
@@ -152,7 +273,17 @@ func TestUpdate(t *testing.T) {
 		{
 			name:       "down on empty sessions does nothing",
 			sessions:   nil,
+			toolModes:  testToolModes(),
 			keys:       []tea.Msg{keyMsg("j")},
+			wantCursor: 0,
+			wantSelect: false,
+			wantQuit:   false,
+		},
+		{
+			name:       "a on empty sessions does nothing",
+			sessions:   nil,
+			toolModes:  testToolModes(),
+			keys:       []tea.Msg{keyMsg("a")},
 			wantCursor: 0,
 			wantSelect: false,
 			wantQuit:   false,
@@ -160,18 +291,19 @@ func TestUpdate(t *testing.T) {
 		{
 			name:       "message clears on next keypress",
 			sessions:   testSessions(),
-			keys:       []tea.Msg{keyMsg("j"), specialKeyMsg(tea.KeyEnter), keyMsg("j")},
-			wantCursor: 2,
+			toolModes:  map[model.Tool][]string{}, // no modes — enter will fail
+			keys:       []tea.Msg{specialKeyMsg(tea.KeyEnter), keyMsg("j")},
+			wantCursor: 1,
 			wantSelect: false,
 			wantQuit:   false,
-			// The message from enter on cursor session should be cleared by the subsequent "j"
+			// The message from enter should be cleared by the subsequent "j"
 			wantMessage: "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := New(tt.sessions)
+			m := New(tt.sessions, tt.toolModes)
 
 			var mdl tea.Model = m
 			for _, msg := range tt.keys {
@@ -194,6 +326,10 @@ func TestUpdate(t *testing.T) {
 				t.Errorf("Selected().Tool = %s, want %s", got.Selected().Tool, tt.wantTool)
 			}
 
+			if tt.wantMode != "" && got.SelectedMode() != tt.wantMode {
+				t.Errorf("SelectedMode() = %q, want %q", got.SelectedMode(), tt.wantMode)
+			}
+
 			if got.Quitting() != tt.wantQuit {
 				t.Errorf("Quitting() = %v, want %v", got.Quitting(), tt.wantQuit)
 			}
@@ -206,7 +342,7 @@ func TestUpdate(t *testing.T) {
 }
 
 func TestWindowResize(t *testing.T) {
-	m := New(testSessions())
+	m := New(testSessions(), testToolModes())
 
 	msg := tea.WindowSizeMsg{Width: 120, Height: 40}
 	mdl, _ := m.Update(msg)
@@ -221,7 +357,7 @@ func TestWindowResize(t *testing.T) {
 }
 
 func TestViewEmpty(t *testing.T) {
-	m := New(nil)
+	m := New(nil, nil)
 	view := m.View()
 
 	if !strings.Contains(view, "No sessions") {
@@ -230,7 +366,7 @@ func TestViewEmpty(t *testing.T) {
 }
 
 func TestViewContainsSessionInfo(t *testing.T) {
-	m := New(testSessions())
+	m := New(testSessions(), testToolModes())
 	m.width = 120
 	m.height = 30
 	view := m.View()
@@ -274,7 +410,7 @@ func TestViewScrolling(t *testing.T) {
 		}
 	}
 
-	m := New(sessions)
+	m := New(sessions, testToolModes())
 	m.width = 80
 	m.height = 10 // Only ~6 visible rows (10 - 4 chrome lines)
 
@@ -297,7 +433,7 @@ func TestViewScrolling(t *testing.T) {
 func TestRenderRowWidthBudget(t *testing.T) {
 	sessions := testSessions()
 	for _, width := range []int{80, 120, 200} {
-		m := New(sessions)
+		m := New(sessions, testToolModes())
 		m.width = width
 		pw := m.previewWidth()
 		for i := range sessions {
@@ -314,7 +450,7 @@ func TestRenderRowWidthBudget(t *testing.T) {
 }
 
 func TestPreviewWidthNarrowTerminal(t *testing.T) {
-	m := New(testSessions())
+	m := New(testSessions(), testToolModes())
 	m.width = 30 // Very narrow
 	pw := m.previewWidth()
 	if pw < 10 {
@@ -359,6 +495,68 @@ func TestTruncatePad(t *testing.T) {
 		got := truncatePad(tt.input, tt.maxLen)
 		if got != tt.want {
 			t.Errorf("truncatePad(%q, %d) = %q, want %q", tt.input, tt.maxLen, got, tt.want)
+		}
+	}
+}
+
+func TestFooterHelp_ClaudeSession(t *testing.T) {
+	m := New(testSessions(), testToolModes())
+	// Cursor is on index 0 (claude session).
+	footer := m.footerHelp()
+
+	for _, want := range []string{"enter: resume", "t: tmux", "a: aoe", "o: open", "f: fork", "q: quit"} {
+		if !strings.Contains(footer, want) {
+			t.Errorf("Claude footer should contain %q, got: %q", want, footer)
+		}
+	}
+}
+
+func TestFooterHelp_CursorSession(t *testing.T) {
+	m := New(testSessions(), testToolModes())
+	// Move cursor to index 1 (cursor session).
+	var mdl tea.Model = m
+	mdl, _ = mdl.Update(keyMsg("j"))
+	got := mdl.(Model)
+	footer := got.footerHelp()
+
+	for _, want := range []string{"enter: resume", "t: tmux", "a: aoe", "o: open", "q: quit"} {
+		if !strings.Contains(footer, want) {
+			t.Errorf("Cursor footer should contain %q, got: %q", want, footer)
+		}
+	}
+
+	// Cursor does not support fork.
+	if strings.Contains(footer, "f: fork") {
+		t.Errorf("Cursor footer should NOT contain 'f: fork', got: %q", footer)
+	}
+}
+
+func TestFooterHelp_UnknownTool(t *testing.T) {
+	sessions := []model.Session{
+		{
+			ID:        "ddd44444-4444-4444-4444-444444444444",
+			Tool:      model.ToolGemini,
+			Project:   "/home/user/projects/gem",
+			Preview:   "Test session",
+			StartedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+	}
+	// No modes registered for gemini.
+	m := New(sessions, map[model.Tool][]string{})
+	footer := m.footerHelp()
+
+	// AoE and open are always available.
+	for _, want := range []string{"a: aoe", "o: open"} {
+		if !strings.Contains(footer, want) {
+			t.Errorf("footer should always contain %q, got: %q", want, footer)
+		}
+	}
+
+	// No resume/tmux/fork for unknown tool.
+	for _, notWant := range []string{"enter: resume", "t: tmux", "f: fork"} {
+		if strings.Contains(footer, notWant) {
+			t.Errorf("unknown tool footer should NOT contain %q, got: %q", notWant, footer)
 		}
 	}
 }

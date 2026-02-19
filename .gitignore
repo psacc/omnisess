@@ -1,6 +1,8 @@
 sessions
+sessions-bin
 *.db
 .DS_Store
 coverage.out
 coverage.html
 *.test
+.a5c/
