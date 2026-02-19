@@ -35,28 +35,42 @@ var (
 
 // Model is the Bubble Tea model for the session picker TUI.
 type Model struct {
-	sessions []model.Session
-	cursor   int
-	offset   int // scroll offset for viewport
-	width    int
-	height   int
-	selected *model.Session
-	quitting bool
-	message  string // inline error/info message
+	sessions     []model.Session
+	cursor       int
+	offset       int // scroll offset for viewport
+	width        int
+	height       int
+	selected     *model.Session
+	selectedMode string // resume mode chosen by user (e.g. "resume", "tmux", "aoe", "fork")
+	quitting     bool
+	message      string // inline error/info message
+	toolModes    map[model.Tool][]string
 }
 
 // New creates a Model pre-loaded with sessions.
-func New(sessions []model.Session) Model {
+// toolModes maps each tool to its available mode strings (e.g. "resume", "fork", "tmux", "aoe").
+// Passing nil means only "aoe" is universally available.
+func New(sessions []model.Session, toolModes map[model.Tool][]string) Model {
+	if toolModes == nil {
+		toolModes = map[model.Tool][]string{}
+	}
 	return Model{
-		sessions: sessions,
-		width:    80,
-		height:   24,
+		sessions:  sessions,
+		width:     80,
+		height:    24,
+		toolModes: toolModes,
 	}
 }
 
 // Selected returns the session the user picked, or nil if they quit.
 func (m Model) Selected() *model.Session {
 	return m.selected
+}
+
+// SelectedMode returns the resume mode string chosen by the user.
+// Empty string if no selection was made. Values: "resume", "tmux", "aoe", "fork".
+func (m Model) SelectedMode() string {
+	return m.selectedMode
 }
 
 // Quitting returns true if the user chose to exit.
@@ -102,21 +116,59 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "enter":
-			if len(m.sessions) == 0 {
-				return m, nil
-			}
-			sess := m.sessions[m.cursor]
-			if sess.Tool != model.ToolClaude {
-				m.message = fmt.Sprintf("resume not supported for %s", sess.Tool)
-				return m, nil
-			}
-			m.selected = &sess
-			m.quitting = true
-			return m, tea.Quit
+			return m.selectWithMode("resume")
+
+		case "t":
+			return m.selectWithMode("tmux")
+
+		case "a":
+			return m.selectWithMode("aoe")
+
+		case "f":
+			return m.selectWithMode("fork")
+
+		case "o":
+			return m.selectWithMode("open")
 		}
 	}
 
 	return m, nil
+}
+
+// selectWithMode attempts to select the current session with the given mode.
+// If no sessions exist or the mode is not available for the tool, it sets an
+// inline message instead.
+func (m Model) selectWithMode(mode string) (tea.Model, tea.Cmd) {
+	if len(m.sessions) == 0 {
+		return m, nil
+	}
+
+	sess := m.sessions[m.cursor]
+
+	if !m.hasModeForTool(sess.Tool, mode) {
+		m.message = fmt.Sprintf("%s not supported for %s", mode, sess.Tool)
+		return m, nil
+	}
+
+	m.selected = &sess
+	m.selectedMode = mode
+	m.quitting = true
+	return m, tea.Quit
+}
+
+// hasModeForTool checks whether the given mode is available for the tool.
+// "aoe" and "open" are always available (they do not depend on the resumer).
+func (m Model) hasModeForTool(tool model.Tool, mode string) bool {
+	if mode == "aoe" || mode == "open" {
+		return true
+	}
+	modes := m.toolModes[tool]
+	for _, available := range modes {
+		if available == mode {
+			return true
+		}
+	}
+	return false
 }
 
 // View implements tea.Model.
@@ -171,12 +223,45 @@ func (m Model) View() string {
 		b.WriteByte('\n')
 	}
 
-	// Footer
-	footer := "j/k: navigate  enter: resume  q: quit"
+	// Footer — dynamic based on selected session's tool
+	footer := m.footerHelp()
 	b.WriteString(styleFooter.Render(footer))
 	b.WriteByte('\n')
 
 	return b.String()
+}
+
+// footerHelp returns the keybinding help line for the currently selected session's tool.
+func (m Model) footerHelp() string {
+	var parts []string
+	parts = append(parts, "j/k: navigate")
+
+	if len(m.sessions) > 0 {
+		tool := m.sessions[m.cursor].Tool
+		modes := m.toolModes[tool]
+
+		// Build mode keybindings in a fixed order.
+		modeSet := make(map[string]bool, len(modes))
+		for _, mode := range modes {
+			modeSet[mode] = true
+		}
+
+		if modeSet["resume"] {
+			parts = append(parts, "enter: resume")
+		}
+		if modeSet["tmux"] {
+			parts = append(parts, "t: tmux")
+		}
+		// AoE and open are always available, no need to check modeSet.
+		parts = append(parts, "a: aoe")
+		parts = append(parts, "o: open")
+		if modeSet["fork"] {
+			parts = append(parts, "f: fork")
+		}
+	}
+
+	parts = append(parts, "q: quit")
+	return strings.Join(parts, "  ")
 }
 
 // renderRow formats a single session row.
