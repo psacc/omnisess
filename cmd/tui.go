@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"sort"
 	"syscall"
 
@@ -13,7 +14,12 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/psacconier/sessions/internal/model"
+	"github.com/psacconier/sessions/internal/resume"
 	"github.com/psacconier/sessions/internal/tui"
+
+	// Register resumers via init() (behind !windows, same as this file).
+	_ "github.com/psacconier/sessions/internal/resume/claude"
+	_ "github.com/psacconier/sessions/internal/resume/cursor"
 )
 
 const defaultTUILimit = 50
@@ -21,12 +27,32 @@ const defaultTUILimit = 50
 var tuiCmd = &cobra.Command{
 	Use:   "tui",
 	Short: "Interactive session picker",
-	Long:  "Browse sessions interactively. Select a Claude session to resume it.",
+	Long:  "Browse sessions interactively. Select a session to resume, fork, or open in tmux/AoE.",
 	RunE:  runTUI,
 }
 
 func init() {
 	rootCmd.AddCommand(tuiCmd)
+}
+
+// buildToolModes queries the resume registry and returns a map of tool -> mode
+// strings suitable for passing to the TUI (keeping the TUI decoupled from
+// the resume package types).
+func buildToolModes() map[model.Tool][]string {
+	tools := []model.Tool{model.ToolClaude, model.ToolCursor, model.ToolCodex, model.ToolGemini}
+	tm := make(map[model.Tool][]string)
+	for _, tool := range tools {
+		modes := resume.Modes(tool)
+		if len(modes) == 0 {
+			continue
+		}
+		strs := make([]string, len(modes))
+		for i, m := range modes {
+			strs[i] = string(m)
+		}
+		tm[tool] = strs
+	}
+	return tm
 }
 
 func runTUI(cmd *cobra.Command, args []string) error {
@@ -64,7 +90,8 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	}
 
 	// Run Bubble Tea program.
-	m := tui.New(all)
+	toolModes := buildToolModes()
+	m := tui.New(all, toolModes)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 
 	finalModel, err := p.Run()
@@ -78,24 +105,49 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		return nil // user quit without selecting
 	}
 
-	// Resume the selected Claude session from its project directory.
-	return resumeClaude(sess.ID, sess.Project)
-}
+	mode := resume.Mode(result.SelectedMode())
 
-// resumeClaude replaces the current process with "claude --resume <id>".
-// It changes to the session's project directory first so Claude Code can find it.
-func resumeClaude(sessionID, projectDir string) error {
-	claudePath, err := exec.LookPath("claude")
-	if err != nil {
-		return fmt.Errorf("claude CLI not found in PATH: %w", err)
+	// AoE mode is handled directly (no resumer needed).
+	if mode == resume.ModeAoE {
+		title := sess.ShortProject() + " (" + string(sess.Tool) + ")"
+		return resume.ExecInAoE(string(sess.Tool), sess.Project, title)
 	}
 
-	if projectDir != "" {
-		if err := os.Chdir(projectDir); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not chdir to %s: %v\n", projectDir, err)
+	// Open mode: open project directory (no resumer needed).
+	if mode == resume.ModeOpen {
+		return openProjectDir(sess.Project)
+	}
+
+	// Look up the resumer for this tool.
+	resumer, ok := resume.Get(sess.Tool)
+	if !ok {
+		return fmt.Errorf("resume not supported for %s (try 'o' to open project dir)", sess.Tool)
+	}
+
+	return resumer.Exec(sess, mode)
+}
+
+// openProjectDir opens a project directory using $EDITOR, falling back to
+// "open" on macOS, and finally just printing the path.
+func openProjectDir(dir string) error {
+	// Prefer $EDITOR: exec into it with the directory as argument.
+	if editor := os.Getenv("EDITOR"); editor != "" {
+		editorPath, err := exec.LookPath(editor)
+		if err != nil {
+			return fmt.Errorf("$EDITOR=%q not found: %w", editor, err)
+		}
+		return syscall.Exec(editorPath, []string{editor, dir}, os.Environ())
+	}
+
+	// macOS: use "open" to reveal in Finder / default handler.
+	if runtime.GOOS == "darwin" {
+		openPath, err := exec.LookPath("open")
+		if err == nil {
+			return syscall.Exec(openPath, []string{"open", dir}, os.Environ())
 		}
 	}
 
-	argv := []string{"claude", "--resume", sessionID}
-	return syscall.Exec(claudePath, argv, os.Environ())
+	// Last resort: print path so the user can cd into it.
+	fmt.Println(dir)
+	return nil
 }
