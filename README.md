@@ -22,6 +22,44 @@ go build -o omnisess .
 
 ---
 
+## Install as Claude Code Plugin
+
+Use omnisess directly from Claude Code via slash commands — no context switching needed.
+
+### Prerequisites
+
+The `omnisess` binary must be installed and in your PATH before installing the plugin:
+
+```bash
+go install github.com/psacc/omnisess@latest
+```
+
+### Install the plugin
+
+In Claude Code, run:
+
+```
+/plugin marketplace add psacc/omnisess
+/plugin install omnisess@psacc
+```
+
+> The marketplace identifier is `omnisess@psacc` — `omnisess` is the plugin name, `psacc` is the marketplace source added in the first command.
+
+### Usage
+
+Once installed, four slash commands are available:
+
+| Command | Description | Example |
+|---|---|---|
+| `/omnisess:list` | List all sessions across all sources | `/omnisess:list --tool claude --limit 10` |
+| `/omnisess:search` | Full-text search across sessions | `/omnisess:search "database migration"` |
+| `/omnisess:active` | Show currently running sessions | `/omnisess:active` |
+| `/omnisess:show` | Show full detail for a session | `/omnisess:show claude:5c3f2742` |
+
+Each command checks for the `omnisess` binary at invocation time and prints clear install instructions if it is not found.
+
+---
+
 ## Quick start
 
 ```
