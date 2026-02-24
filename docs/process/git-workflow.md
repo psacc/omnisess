@@ -87,6 +87,35 @@ The implementing agent:
 
 Human review is only required for one-way door escalations (see below).
 
+### PR body requirements
+
+Every PR MUST have all sections of `.github/pull_request_template.md` populated before merge. Unfilled placeholder text or empty sections are grounds for a reviewer to request changes. When opening a PR manually, compose the body from the template:
+
+```bash
+gh pr create --title "<commit subject>" --body "$(cat <<'EOF'
+## Summary
+- <bullet>
+
+## Type of change
+- [ ] Bug fix
+- [ ] New feature
+- [x] Chore / tooling
+
+## Test plan
+- [x] `make check` passes
+- [x] `make smoke` passes
+
+## OpenSpec change
+`<change-name>` or N/A
+
+## Breaking changes
+Yes / No — <description if yes>
+EOF
+)"
+```
+
+Do not use `gh pr create --fill`; it bypasses the template.
+
 ### Two-way door changes (agent self-merges after subagent review)
 
 ALL of these must be true:
