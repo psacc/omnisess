@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/psacconier/sessions/internal/model"
-	"github.com/psacconier/sessions/internal/output"
-	"github.com/psacconier/sessions/internal/source"
+	"github.com/psacc/omnisess/internal/model"
+	"github.com/psacc/omnisess/internal/output"
+	"github.com/psacc/omnisess/internal/source"
 	"github.com/spf13/cobra"
 )
 

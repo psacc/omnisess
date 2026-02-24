@@ -1,6 +1,6 @@
 package source
 
-import "github.com/psacconier/sessions/internal/model"
+import "github.com/psacc/omnisess/internal/model"
 
 var registry []Source
 

@@ -4,7 +4,7 @@
 all: build vet lint test
 
 build:
-	go build -o sessions .
+	go build -o omnisess .
 
 test:
 	go test -race -count=1 ./...
@@ -49,7 +49,7 @@ merge:
 	echo "Done. $$branch squash-merged into main."
 
 clean:
-	rm -f sessions coverage.out coverage.html
+	rm -f omnisess coverage.out coverage.html
 
 setup:
 	@echo "Installing git hooks..."

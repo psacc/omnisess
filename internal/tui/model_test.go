@@ -7,7 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/psacconier/sessions/internal/model"
+	"github.com/psacc/omnisess/internal/model"
 )
 
 // testSessions returns a slice of sessions for testing.

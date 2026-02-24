@@ -8,8 +8,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/psacconier/sessions/internal/model"
-	"github.com/psacconier/sessions/internal/output"
+	"github.com/psacc/omnisess/internal/model"
+	"github.com/psacc/omnisess/internal/output"
 )
 
 // Column widths (fixed layout).

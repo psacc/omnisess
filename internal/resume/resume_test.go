@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/psacconier/sessions/internal/model"
+	"github.com/psacc/omnisess/internal/model"
 )
 
 // mockResumer implements Resumer for testing.

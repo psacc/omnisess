@@ -3,7 +3,7 @@ package resume
 import (
 	"fmt"
 
-	"github.com/psacconier/sessions/internal/model"
+	"github.com/psacc/omnisess/internal/model"
 )
 
 // Mode describes how a session will be resumed.

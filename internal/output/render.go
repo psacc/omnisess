@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/psacconier/sessions/internal/model"
+	"github.com/psacc/omnisess/internal/model"
 )
 
 // sanitizeString strips C0 control characters (U+0000-U+001F) that are not

@@ -1,4 +1,4 @@
-# sessions — AI Session Aggregator
+# omnisess — AI Session Aggregator
 
 CLI tool that aggregates AI coding sessions across Claude Code, Cursor, Codex, and Gemini. Search, list, and detect active sessions from one place.
 
@@ -57,12 +57,12 @@ make cover    # test with per-function coverage report
 Or manually:
 
 ```bash
-go build -o sessions .
+go build -o omnisess .
 go test ./...
-./sessions list
-./sessions search "query"
-./sessions active
-./sessions show claude:<session-id>
+./omnisess list
+./omnisess search "query"
+./omnisess active
+./omnisess show claude:<session-id>
 ```
 
 ## Development Process
@@ -75,8 +75,8 @@ See [`docs/dev-harness.md`](docs/dev-harness.md) for the full development harnes
 2. **Plan** -- If the task is non-trivial, write or update an exec plan in `docs/exec-plans/active/`
 3. **Branch** -- Create a branch per [`docs/process/git-workflow.md`](docs/process/git-workflow.md) (doc-only changes may go directly to main)
 4. **Implement** -- Write code. Follow the invariants above. Keep source packages isolated.
-5. **Verify** -- `make check` (or: `go build -o sessions . && go vet ./... && go test ./...`)
-6. **Smoke test** -- Run the relevant `sessions` subcommand against real local data
+5. **Verify** -- `make check` (or: `go build -o omnisess . && go vet ./... && go test ./...`)
+6. **Smoke test** -- Run the relevant `omnisess` subcommand against real local data
 7. **Commit & merge** -- Follow the review and merge rules in [`docs/process/git-workflow.md`](docs/process/git-workflow.md)
 8. **Complete** -- Move finished exec plans to `docs/exec-plans/completed/`, update `ARCHITECTURE.md` if the codemap changed
 

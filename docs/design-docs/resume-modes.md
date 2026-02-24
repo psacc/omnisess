@@ -27,7 +27,7 @@ The TUI can only resume Claude Code sessions. It uses `syscall.Exec` (process re
 
 package resume
 
-import "github.com/psacconier/sessions/internal/model"
+import "github.com/psacc/omnisess/internal/model"
 
 // Mode describes how a session will be resumed.
 type Mode string

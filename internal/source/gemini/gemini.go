@@ -1,8 +1,8 @@
 package gemini
 
 import (
-	"github.com/psacconier/sessions/internal/model"
-	"github.com/psacconier/sessions/internal/source"
+	"github.com/psacc/omnisess/internal/model"
+	"github.com/psacc/omnisess/internal/source"
 )
 
 func init() {

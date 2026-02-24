@@ -8,8 +8,8 @@ import (
 	"os/exec"
 	"syscall"
 
-	"github.com/psacconier/sessions/internal/model"
-	"github.com/psacconier/sessions/internal/resume"
+	"github.com/psacc/omnisess/internal/model"
+	"github.com/psacc/omnisess/internal/resume"
 )
 
 func init() {

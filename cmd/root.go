@@ -5,16 +5,16 @@ import (
 	"os"
 	"time"
 
-	"github.com/psacconier/sessions/internal/model"
-	"github.com/psacconier/sessions/internal/output"
-	"github.com/psacconier/sessions/internal/source"
+	"github.com/psacc/omnisess/internal/model"
+	"github.com/psacc/omnisess/internal/output"
+	"github.com/psacc/omnisess/internal/source"
 	"github.com/spf13/cobra"
 
 	// Register all sources via init()
-	_ "github.com/psacconier/sessions/internal/source/claude"
-	_ "github.com/psacconier/sessions/internal/source/codex"
-	_ "github.com/psacconier/sessions/internal/source/cursor"
-	_ "github.com/psacconier/sessions/internal/source/gemini"
+	_ "github.com/psacc/omnisess/internal/source/claude"
+	_ "github.com/psacc/omnisess/internal/source/codex"
+	_ "github.com/psacc/omnisess/internal/source/cursor"
+	_ "github.com/psacc/omnisess/internal/source/gemini"
 )
 
 var (
@@ -26,7 +26,7 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "sessions",
+	Use:   "omnisess",
 	Short: "Aggregate AI coding sessions across tools",
 	Long:  "Search, list, and monitor AI coding sessions from Claude Code, Cursor, Codex, and Gemini.",
 }

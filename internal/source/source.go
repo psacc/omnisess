@@ -3,7 +3,7 @@ package source
 import (
 	"time"
 
-	"github.com/psacconier/sessions/internal/model"
+	"github.com/psacc/omnisess/internal/model"
 )
 
 // ListOptions controls filtering for List and Search operations.
