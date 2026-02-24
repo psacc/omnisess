@@ -42,7 +42,7 @@ pr:
 		echo "error: cannot open PR from main"; exit 1; \
 	fi; \
 	git push -u origin "$$branch" && \
-	gh pr create --fill
+	gh pr create --title "$$(git log -1 --format='%s')" --body-file .github/pull_request_template.md
 
 install:
 	go install .
