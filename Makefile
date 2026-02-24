@@ -1,4 +1,4 @@
-.PHONY: all build test cover cover-html lint vet fmt check clean setup pr
+.PHONY: all build test cover cover-html lint vet fmt check clean setup pr install smoke
 
 # Default: build + vet + lint + test
 all: build vet lint test
@@ -43,6 +43,17 @@ pr:
 	fi; \
 	git push -u origin "$$branch" && \
 	gh pr create --fill
+
+install:
+	go install .
+
+smoke:
+	@command -v omnisess >/dev/null 2>&1 || { \
+		echo "omnisess not in PATH. Run: make install"; \
+		echo "  Then ensure ~/go/bin is on your PATH: export PATH=\"\$$PATH:\$$HOME/go/bin\""; \
+		exit 1; \
+	}
+	omnisess list --limit=1
 
 clean:
 	rm -f omnisess coverage.out coverage.html

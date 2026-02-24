@@ -60,7 +60,7 @@ Decision (agent-decided): <what and why>
 1. Branch    git checkout -b <prefix>/<slug>
 2. Implement Write code, following CLAUDE.md invariants
 3. Verify    make check (must be clean -- zero warnings, zero failures)
-4. Smoke     Run the relevant `sessions` subcommand against real local data
+4. Smoke     make smoke
 5. Commit    git add <files> && git commit (conventional message)
 6. Review    Spawn a reviewer subagent against the branch diff
 7. Address   Fix all findings from review (amend or new commit)
@@ -94,7 +94,7 @@ ALL of these must be true:
 - Classified as two-way door per `agent-review.md` Section 1
 - **Subagent review completed** and all findings addressed
 - `make check` passes with zero warnings and zero test failures
-- Smoke test ran and produced expected output
+- `make smoke` ran and produced expected output
 - Exec plan status updated (moved to `completed/` if done)
 - No new external dependencies added
 
@@ -120,7 +120,7 @@ If classification is unclear, request a reviewer subagent per `agent-review.md` 
 Before any merge to `main`, verify every item:
 
 - [ ] `make check` clean (fmt + vet + lint + test, zero failures)
-- [ ] Smoke test: ran relevant `sessions` subcommand, output is correct
+- [ ] `make smoke` passed (binary in PATH, `omnisess list --limit=1` exits 0)
 - [ ] Exec plan: status updated (`active/` -> `completed/` if finished)
 - [ ] Commit messages: follow conventional format, include `agent-decided` tag if applicable
 - [ ] No untracked files left behind (build artifacts, temp files)
