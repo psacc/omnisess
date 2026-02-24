@@ -77,7 +77,7 @@ See [`docs/dev-harness.md`](docs/dev-harness.md) for the full development harnes
 4. **Implement** -- Write code. Follow the invariants above. Keep source packages isolated.
 5. **Verify** -- `make check` (or: `go build -o omnisess . && go vet ./... && go test ./...`)
 6. **Smoke test** -- Run the relevant `omnisess` subcommand against real local data
-7. **Commit & merge** -- Follow the review and merge rules in [`docs/process/git-workflow.md`](docs/process/git-workflow.md)
+7. **Commit & merge** -- Follow the review and merge rules in [`docs/process/git-workflow.md`](docs/process/git-workflow.md). When opening a PR, compose the body from `.github/pull_request_template.md` — fill Summary, Type, Test plan, OpenSpec, and Breaking changes sections before submitting.
 8. **Complete** -- Move finished exec plans to `docs/exec-plans/completed/`, update `ARCHITECTURE.md` if the codemap changed
 
 ### Adding a new Source
