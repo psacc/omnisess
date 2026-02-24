@@ -13,13 +13,13 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
-	"github.com/psacconier/sessions/internal/model"
-	"github.com/psacconier/sessions/internal/resume"
-	"github.com/psacconier/sessions/internal/tui"
+	"github.com/psacc/omnisess/internal/model"
+	"github.com/psacc/omnisess/internal/resume"
+	"github.com/psacc/omnisess/internal/tui"
 
 	// Register resumers via init() (behind !windows, same as this file).
-	_ "github.com/psacconier/sessions/internal/resume/claude"
-	_ "github.com/psacconier/sessions/internal/resume/cursor"
+	_ "github.com/psacc/omnisess/internal/resume/claude"
+	_ "github.com/psacc/omnisess/internal/resume/cursor"
 )
 
 const defaultTUILimit = 50

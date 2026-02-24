@@ -49,7 +49,7 @@ Replace the hardcoded `resumeClaude()` in `cmd/tui.go` with a strategy-pattern `
    - If no resumer registered, show error (replaces the current `sess.Tool != model.ToolClaude` check)
    - Call `resumer.Exec(sess, resume.ModeResume)`
 
-1.4. Add blank import `_ "github.com/psacconier/sessions/internal/resume/claude"` to `cmd/root.go`
+1.4. Add blank import `_ "github.com/psacc/omnisess/internal/resume/claude"` to `cmd/root.go`
 
 1.5. Add unit tests:
    - `internal/resume/resume_test.go`: registry Register/Get/Modes round-trip
@@ -98,7 +98,7 @@ Replace the hardcoded `resumeClaude()` in `cmd/tui.go` with a strategy-pattern `
    - Call `resume.Register()` in `init()`
    - Build tag: `//go:build !windows`
 
-3.3. Add blank import `_ "github.com/psacconier/sessions/internal/resume/cursor"` to `cmd/root.go`
+3.3. Add blank import `_ "github.com/psacc/omnisess/internal/resume/cursor"` to `cmd/root.go`
 
 3.4. Add unit tests in `internal/resume/cursor/cursor_test.go`: same pattern as Claude tests.
 

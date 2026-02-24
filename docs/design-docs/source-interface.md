@@ -46,7 +46,7 @@ func init() {
 
 Imported via blank import in `cmd/root.go`:
 ```go
-_ "github.com/psacconier/sessions/internal/source/claude"
+_ "github.com/psacc/omnisess/internal/source/claude"
 ```
 
 ## Adding a New Source

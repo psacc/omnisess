@@ -91,8 +91,7 @@ Detailed file format specs for each tool are in:
 ## Build
 
 ```bash
-cd /Users/paolo.sacconier/prj/psacc/sessions
-go build -o sessions .
+go build -o omnisess .
 # or install to PATH:
-go build -o ~/bin/sessions .
+go build -o ~/bin/omnisess .
 ```

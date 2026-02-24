@@ -1,6 +1,6 @@
 package main
 
-import "github.com/psacconier/sessions/cmd"
+import "github.com/psacc/omnisess/cmd"
 
 func main() {
 	cmd.Execute()

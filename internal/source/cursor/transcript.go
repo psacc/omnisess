@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/psacconier/sessions/internal/model"
+	"github.com/psacc/omnisess/internal/model"
 )
 
 // parseTranscript reads a Cursor agent transcript file and returns structured messages.

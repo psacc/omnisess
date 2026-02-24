@@ -5,8 +5,8 @@ import (
 	"os"
 	"sort"
 
-	"github.com/psacconier/sessions/internal/model"
-	"github.com/psacconier/sessions/internal/output"
+	"github.com/psacc/omnisess/internal/model"
+	"github.com/psacc/omnisess/internal/output"
 	"github.com/spf13/cobra"
 )
 
