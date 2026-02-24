@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/psacconier/sessions/internal/model"
+	"github.com/psacc/omnisess/internal/model"
 )
 
 // historyEntry represents a single line in ~/.claude/history.jsonl.

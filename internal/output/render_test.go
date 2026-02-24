@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/psacconier/sessions/internal/model"
+	"github.com/psacc/omnisess/internal/model"
 )
 
 func TestTruncate(t *testing.T) {

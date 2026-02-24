@@ -1,4 +1,4 @@
-module github.com/psacconier/sessions
+module github.com/psacc/omnisess
 
 go 1.25.0
 

@@ -3,7 +3,7 @@ package source
 import (
 	"testing"
 
-	"github.com/psacconier/sessions/internal/model"
+	"github.com/psacc/omnisess/internal/model"
 )
 
 // mockSource implements Source for testing.
