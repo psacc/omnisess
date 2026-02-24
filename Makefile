@@ -1,4 +1,4 @@
-.PHONY: all build test cover cover-html lint vet fmt check clean setup pr install smoke
+.PHONY: all build test cover cover-html lint vet fmt check clean setup pr install smoke tag release
 
 # Default: build + vet + lint + test
 all: build vet lint test
@@ -54,6 +54,24 @@ smoke:
 		exit 1; \
 	}
 	omnisess list --limit=1
+
+tag:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "error: VERSION is required. Usage: make tag VERSION=v0.1.0"; exit 1; \
+	fi
+	git tag -a "$(VERSION)" -m "Release $(VERSION)"
+	git push origin "$(VERSION)"
+
+release: tag
+	@command -v gh >/dev/null 2>&1 || { \
+		echo "gh CLI not found. Install: https://cli.github.com/"; \
+		echo "  brew install gh"; \
+		exit 1; \
+	}
+	gh release create "$(VERSION)" --generate-notes --title "$(VERSION)"
+	@echo ""
+	@echo "Release $(VERSION) published."
+	@echo "Next: update .claude-plugin/plugin.json version field to match (see docs/process/release.md)"
 
 clean:
 	rm -f omnisess coverage.out coverage.html

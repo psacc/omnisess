@@ -1,6 +1,6 @@
 {
   "name": "omnisess",
-  "version": "1.0.0",
+  "version": "0.2.0",
   "description": "Aggregate AI coding sessions across Claude Code, Cursor, Codex, and Gemini",
   "author": "psacc",
   "license": "MIT",
@@ -21,7 +21,8 @@
     { "name": "list",   "file": "commands/omnisess/list.md" },
     { "name": "search", "file": "commands/omnisess/search.md" },
     { "name": "active", "file": "commands/omnisess/active.md" },
-    { "name": "show",   "file": "commands/omnisess/show.md" }
+    { "name": "show",   "file": "commands/omnisess/show.md" },
+    { "name": "recap",  "file": "commands/omnisess/recap.md" }
   ],
   "skills": [
     {
@@ -39,6 +40,10 @@
     {
       "name": "show",
       "file": "skills/omnisess-show/SKILL.md"
+    },
+    {
+      "name": "recap",
+      "file": "skills/omnisess-recap/SKILL.md"
     }
   ]
 }
