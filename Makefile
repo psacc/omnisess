@@ -1,4 +1,4 @@
-.PHONY: all build test cover cover-html lint vet fmt check clean setup merge
+.PHONY: all build test cover cover-html lint vet fmt check clean setup merge pr
 
 # Default: build + vet + lint + test
 all: build vet lint test
@@ -47,6 +47,16 @@ merge:
 	git commit && \
 	git branch -D "$$branch" && \
 	echo "Done. $$branch squash-merged into main."
+
+# Push current branch and open a GitHub PR
+# Usage: make pr
+pr:
+	@branch=$$(git rev-parse --abbrev-ref HEAD); \
+	if [ "$$branch" = "main" ]; then \
+		echo "error: cannot open PR from main"; exit 1; \
+	fi; \
+	git push -u origin "$$branch" && \
+	gh pr create --fill
 
 clean:
 	rm -f omnisess coverage.out coverage.html
