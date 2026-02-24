@@ -105,6 +105,26 @@ claude:5c3f2742  ~/prj/myapp  (process alive, modified 47s ago)
 
 ---
 
+## Releases
+
+Versioned releases are published to the [GitHub releases page](https://github.com/psacc/omnisess/releases).
+
+Install a specific version:
+
+```bash
+go install github.com/psacc/omnisess@v0.1.0
+```
+
+Install the latest tagged release:
+
+```bash
+go install github.com/psacc/omnisess@latest
+```
+
+See [`docs/process/release.md`](docs/process/release.md) for the release process.
+
+---
+
 ## Contributing
 
 1. Fork the repository and create a feature branch (`git checkout -b feat/my-change`).
