@@ -18,6 +18,8 @@ The binary is named `omnisess`. Or build from source:
 git clone https://github.com/psacc/omnisess.git
 cd omnisess
 go build -o omnisess .
+make install  # installs binary to ~/go/bin/omnisess
+make smoke    # verifies the installed binary is reachable and functional
 ```
 
 ---
