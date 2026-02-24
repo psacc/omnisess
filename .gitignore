@@ -6,3 +6,4 @@ coverage.out
 coverage.html
 *.test
 .a5c/
+.claude/settings.local.json
