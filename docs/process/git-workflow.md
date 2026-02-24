@@ -9,15 +9,25 @@ Branch, commit, review, and merge rules for agents working in this repository.
 | `fix/<slug>` | Bug fix | `fix/active-detection` |
 | `feat/<slug>` | New feature or capability | `feat/gemini-source` |
 | `chore/<slug>` | Non-functional: refactors, tooling, CI | `chore/lint-config` |
-| `docs/<slug>` | Documentation-only changes | `docs/pr-workflow` |
 
 Slugs are lowercase, hyphen-separated, and short (2-4 words max).
 
 ## 2. When to Branch vs. Commit to Main
 
-**Always branch.** Now that the repo is public at `github.com/psacc/omnisess`, all changes go through a PR — including doc-only changes.
+**Commit directly to `main`** only when ALL of these are true:
 
-The only exception is automated tooling commits (e.g. `go mod tidy` triggered by Dependabot) that arrive via their own PR.
+- The change is doc-only (`.md` files, comments) OR config-only (`.golangci.yml`, `Makefile`)
+- No Go source files are touched
+- `make check` passes
+
+**Create a branch** when ANY of these is true:
+
+- Go source files change (`.go`)
+- Test files change
+- `go.mod` or `go.sum` change
+- The change spans more than one commit
+
+When in doubt, branch. Branches are free; broken main is not.
 
 ## 3. Commit Messages
 
@@ -47,68 +57,37 @@ Decision (agent-decided): <what and why>
 ## 4. The Full Flow
 
 ```
-1. Plan      /opsx:new — create OpenSpec change with proposal → design → specs → tasks
-2. Branch    git checkout -b <prefix>/<slug>
-3. Implement Write code following CLAUDE.md invariants; /opsx:apply to work through tasks
-4. Verify    make check (must be clean — zero warnings, zero failures)
-5. Smoke     Run the relevant `omnisess` subcommand against real local data
-6. Commit    git add <files> && git commit (conventional message)
-7. Push      git push -u origin <branch>
-8. PR        make pr  (or: gh pr create — see §5)
-9. Review    Spawn a reviewer subagent against the PR diff
-10. Address  Fix all findings (new commit on the branch; push again)
-11. Merge    gh pr merge --squash --delete-branch
-12. Archive  /opsx:archive — move OpenSpec change to completed, update main specs
+1. Branch    git checkout -b <prefix>/<slug>
+2. Implement Write code, following CLAUDE.md invariants
+3. Verify    make check (must be clean -- zero warnings, zero failures)
+4. Smoke     Run the relevant `sessions` subcommand against real local data
+5. Commit    git add <files> && git commit (conventional message)
+6. Review    Spawn a reviewer subagent against the branch diff
+7. Address   Fix all findings from review (amend or new commit)
+8. Classify  Two-way door → self-merge. One-way door → push, escalate.
+9. Merge     make merge (squash-merges branch into main, keeps linear history)
 ```
 
-Steps 3-6 may repeat within a branch. Steps 9-10 may repeat if the reviewer finds new issues after fixes.
+Steps 2-5 may repeat within a branch. Steps 6-7 may repeat if the reviewer finds new issues after fixes. Each commit should be a coherent, reviewable unit.
 
-## 5. Opening a PR
-
-Use `make pr` to push the branch and open a PR in one step:
-
-```bash
-make pr
-```
-
-This runs: `git push -u origin HEAD && gh pr create --fill`
-
-Or manually:
-
-```bash
-git push -u origin HEAD
-gh pr create --title "<title>" --body "$(cat <<'EOF'
-## Summary
-- <bullet>
-
-## Test plan
-- [ ] make check passes
-- [ ] smoke test: omnisess <subcommand> produces expected output
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-EOF
-)"
-```
-
-## 6. Review and Merge Rules
+## 5. Review and Merge Rules
 
 Review rules depend on the decision classification from [`agent-review.md`](agent-review.md).
 
 ### Review is mandatory, but not human
 
-Every PR MUST be reviewed before merge. The default reviewer is a **subagent**, not a human.
+Every branch MUST be reviewed before merge. The default reviewer is a **subagent**, not a human.
 
 The implementing agent:
 
-1. Completes the fix/feature on a branch and pushes
-2. Opens a PR with `make pr`
-3. Spawns a reviewer subagent (type: `coderabbit:code-reviewer`) against the PR diff
-4. Addresses all findings (new commit, push)
-5. Merges per the rules below
+1. Completes the fix/feature on a branch
+2. Spawns a reviewer subagent (type: `coderabbit:code-reviewer` or equivalent) against the branch diff
+3. Addresses all findings from the review (amend or new commit)
+4. Proceeds to merge per the rules below
 
 Human review is only required for one-way door escalations (see below).
 
-### Two-way door changes (agent merges after subagent review)
+### Two-way door changes (agent self-merges after subagent review)
 
 ALL of these must be true:
 
@@ -116,10 +95,10 @@ ALL of these must be true:
 - **Subagent review completed** and all findings addressed
 - `make check` passes with zero warnings and zero test failures
 - Smoke test ran and produced expected output
-- OpenSpec change archived (`/opsx:archive`) if applicable
+- Exec plan status updated (moved to `completed/` if done)
 - No new external dependencies added
 
-If all conditions hold, the agent runs `gh pr merge --squash --delete-branch`. Do not ask a human.
+If all conditions hold, the agent runs `make merge` (squash-merge into main) and verifies. Do not ask a human.
 
 ### One-way door changes (escalate to human)
 
@@ -130,28 +109,27 @@ ANY of these triggers escalation:
 - Changes to public interfaces (`Source`, `model.*` types, CLI flags)
 - Change affects 3+ packages
 
-The agent opens the PR but does NOT merge. Leave a summary using the escalation format from `agent-review.md` Section 4.
+The agent pushes the branch but does NOT merge. Leave a summary using the escalation format from `agent-review.md` Section 4.
 
 ### Uncertain
 
 If classification is unclear, request a reviewer subagent per `agent-review.md` Section 2. Do not merge until resolved.
 
-## 7. Pre-Merge Checklist
+## 6. Pre-Merge Checklist
 
-Before merging any PR, verify every item:
+Before any merge to `main`, verify every item:
 
 - [ ] `make check` clean (fmt + vet + lint + test, zero failures)
-- [ ] Smoke test: ran relevant `omnisess` subcommand, output is correct
-- [ ] OpenSpec change archived if this PR completed a change
+- [ ] Smoke test: ran relevant `sessions` subcommand, output is correct
+- [ ] Exec plan: status updated (`active/` -> `completed/` if finished)
 - [ ] Commit messages: follow conventional format, include `agent-decided` tag if applicable
 - [ ] No untracked files left behind (build artifacts, temp files)
-- [ ] PR description is accurate and complete
+- [ ] Branch deleted after merge
 
-## 8. Post-Merge
+## 7. Post-Merge
 
-After the PR is merged:
+After merging to `main`:
 
-1. GitHub deletes the branch automatically (`--delete-branch` flag)
-2. Pull main locally: `git checkout main && git pull`
-3. Verify `make check` still passes on `main`
-4. Update `ARCHITECTURE.md` if the codemap changed (new packages, renamed files)
+1. Delete the feature branch: `git branch -d <branch>`
+2. Verify `make check` still passes on `main`
+3. Update `ARCHITECTURE.md` if the codemap changed (new packages, renamed files)

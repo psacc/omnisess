@@ -71,15 +71,14 @@ See [`docs/dev-harness.md`](docs/dev-harness.md) for the full development harnes
 
 ### Session loop
 
-1. **Orient** -- Read this file + `openspec/changes/` to find active changes; check `docs/exec-plans/active/` for legacy plans
-2. **Plan** -- Use `/opsx:new` to create an OpenSpec change (proposal → design → specs → tasks)
-3. **Branch** -- Create a branch per [`docs/process/git-workflow.md`](docs/process/git-workflow.md)
-4. **Implement** -- Use `/opsx:apply` to work through tasks. Follow the invariants above.
+1. **Orient** -- Read this file + `docs/exec-plans/active/` to find the next task
+2. **Plan** -- If the task is non-trivial, write or update an exec plan in `docs/exec-plans/active/`
+3. **Branch** -- Create a branch per [`docs/process/git-workflow.md`](docs/process/git-workflow.md) (doc-only changes may go directly to main)
+4. **Implement** -- Write code. Follow the invariants above. Keep source packages isolated.
 5. **Verify** -- `make check` (or: `go build -o omnisess . && go vet ./... && go test ./...`)
 6. **Smoke test** -- Run the relevant `omnisess` subcommand against real local data
-7. **PR** -- `make pr` to push and open a PR; spawn reviewer subagent; address findings
-8. **Merge** -- `gh pr merge --squash --delete-branch` after review passes
-9. **Archive** -- `/opsx:archive` to finalize the OpenSpec change; update `ARCHITECTURE.md` if codemap changed
+7. **Commit & merge** -- Follow the review and merge rules in [`docs/process/git-workflow.md`](docs/process/git-workflow.md)
+8. **Complete** -- Move finished exec plans to `docs/exec-plans/completed/`, update `ARCHITECTURE.md` if the codemap changed
 
 ### Adding a new Source
 
