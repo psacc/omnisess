@@ -9,24 +9,22 @@ on:
       - main
 
 jobs:
-  build:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: "stable"
-      - name: Build
+      - name: Install golangci-lint
+        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin
+      - name: fmt
+        run: test -z "$(gofmt -l .)"
+      - name: build
         run: go build ./...
-
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "stable"
-      - name: Vet
+      - name: vet
         run: go vet ./...
-      - name: Test
+      - name: lint
+        run: golangci-lint run
+      - name: test
         run: go test -race ./...
