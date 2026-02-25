@@ -68,24 +68,6 @@ While the version is `v0.x.y`, minor bumps may include breaking changes — this
    gh release view v0.2.0     # confirms GitHub release
    ```
 
-6. Sync `plugin.json` (manual step — see below).
-
-## plugin.json Version Sync
-
-The `plugin.json` file at `.claude-plugin/plugin.json` has a `version` field. This is not read by `go build` and is not auto-bumped by `make release`. After tagging, update it manually:
-
-1. Open `.claude-plugin/plugin.json`
-2. Set `"version"` to match the release tag without the `v` prefix (e.g., `"0.2.0"`)
-3. Commit directly to `main`:
-
-   ```bash
-   git add .claude-plugin/plugin.json
-   git commit -m "chore: bump plugin.json to 0.2.0"
-   git push origin main
-   ```
-
-This is a two-minute step. Automation will be added when the manual overhead becomes a real friction point.
-
 ## Version History
 
 | Version | Date | Notes |

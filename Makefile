@@ -71,7 +71,6 @@ release: tag
 	gh release create "$(VERSION)" --generate-notes --title "$(VERSION)"
 	@echo ""
 	@echo "Release $(VERSION) published."
-	@echo "Next: update .claude-plugin/plugin.json version field to match (see docs/process/release.md)"
 
 clean:
 	rm -f omnisess coverage.out coverage.html
