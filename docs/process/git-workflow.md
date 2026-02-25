@@ -12,7 +12,25 @@ Branch, commit, review, and merge rules for agents working in this repository.
 
 Slugs are lowercase, hyphen-separated, and short (2-4 words max).
 
-## 2. When to Branch vs. Commit to Main
+## 2. Branch Protection
+
+Direct push to `main` is **blocked by GitHub branch protection**. All changes MUST go through a pull request — there is no bypass, including for admins.
+
+Branch protection settings applied:
+- Squash-only merges (no merge commits, no rebase)
+- Linear history required
+- Auto-delete branch on merge
+- `enforce_admins: false` (solo project — tighten via `--force` if collaborators join)
+
+To apply or refresh protection settings after cloning or reconfiguring the repo:
+
+```bash
+make repo-setup
+```
+
+This is idempotent — safe to re-run at any time. Run `make repo-setup FORCE=1` to overwrite stricter manually-applied settings.
+
+## 3. When to Branch vs. Commit to Main
 
 **Commit directly to `main`** only when ALL of these are true:
 
@@ -29,7 +47,7 @@ Slugs are lowercase, hyphen-separated, and short (2-4 words max).
 
 When in doubt, branch. Branches are free; broken main is not.
 
-## 3. Commit Messages
+## 4. Commit Messages
 
 Follow [Conventional Commits](https://www.conventionalcommits.org/) with the prefixes used in this repo:
 
@@ -54,7 +72,7 @@ For agent-decided design decisions, append to the commit body:
 Decision (agent-decided): <what and why>
 ```
 
-## 4. The Full Flow
+## 5. The Full Flow
 
 ```
 1. Branch    git checkout -b <prefix>/<slug>
@@ -70,7 +88,7 @@ Decision (agent-decided): <what and why>
 
 Steps 2-5 may repeat within a branch. Steps 6-7 may repeat if the reviewer finds new issues after fixes. Each commit should be a coherent, reviewable unit.
 
-## 5. Review and Merge Rules
+## 6. Review and Merge Rules
 
 Review rules depend on the decision classification from [`agent-review.md`](agent-review.md).
 
@@ -144,7 +162,7 @@ The agent pushes the branch but does NOT merge. Leave a summary using the escala
 
 If classification is unclear, request a reviewer subagent per `agent-review.md` Section 2. Do not merge until resolved.
 
-## 6. Pre-Merge Checklist
+## 7. Pre-Merge Checklist
 
 Before any merge to `main`, verify every item:
 
@@ -155,7 +173,7 @@ Before any merge to `main`, verify every item:
 - [ ] No untracked files left behind (build artifacts, temp files)
 - [ ] Branch deleted after merge
 
-## 7. Post-Merge
+## 8. Post-Merge
 
 After merging to `main`:
 
