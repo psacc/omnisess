@@ -1,4 +1,4 @@
-.PHONY: all build test test-integ cover cover-html lint vet fmt check clean setup pr install smoke tag release repo-setup help
+.PHONY: all build test test-integ cover cover-check cover-html lint vet fmt check clean setup pr install smoke tag release repo-setup help
 
 # Default: build + vet + lint + test
 all: build vet lint test
@@ -22,6 +22,13 @@ cover: ## Run tests with per-function coverage report
 cover-html: cover ## Run tests and open HTML coverage report
 	go tool cover -html=coverage.out -o coverage.html
 	open coverage.html
+
+cover-check: ## Enforce 100% per-package coverage (exempt: gemini, main)
+	go test -coverprofile=coverage.out ./...
+	@go tool cover -func=coverage.out | awk -v threshold=100 \
+	  '/^total:/ { next } \
+	  { n=split($$1,p,"/"); pkg=""; for(i=1;i<n;i++) pkg=(pkg==""?p[i]:pkg"/"p[i]); pct=$$NF; sub(/%$$/,"",pct); sum[pkg]+=pct; count[pkg]++ } \
+	  END { fail=0; for(pkg in sum) { if(pkg~/gemini/) continue; if(pkg=="github.com/psacc/omnisess") continue; avg=sum[pkg]/count[pkg]; if(avg<threshold) { printf "FAIL %s\t%.1f%%\n",pkg,avg; fail=1 } } exit fail }'
 
 lint:
 	@command -v golangci-lint >/dev/null 2>&1 || { \
