@@ -24,7 +24,7 @@ Produce a structured markdown briefing of AI coding sessions for a given time wi
 ```
 
 - Default window: `today` (last 24 hours)
-- `yesterday` — last 48 hours (rolling approximation)
+- `yesterday` — last 48 hours (rolling approximation — includes today's sessions too)
 - `Nd` — last N days (e.g., `3d` = last 72 hours)
 
 ## Instructions
@@ -65,13 +65,13 @@ Run:
 omnisess list --since=<resolved-duration> --json
 ```
 
-Capture the JSON output. If the command fails or returns no output, print:
+Capture the JSON output. If the command exits with a non-zero status, print:
 
 ```
 No sessions found for <window>.
 ```
 
-and exit 0.
+and exit 1.
 
 ### Step 4: Filter sessions
 
@@ -124,7 +124,6 @@ Rules:
 - The date range header uses the resolved window (e.g., "last 24h", "last 3 days")
 - The `## Pending` section is omitted entirely if all sessions have status `complete`
 - List sessions within each project group in reverse chronological order (most recent first)
-- If a project has only one session, keep the section header but do not add a sub-list — use a single bullet
 
 ### Notes
 
