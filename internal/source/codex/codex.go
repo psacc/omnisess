@@ -150,6 +150,12 @@ func (s *codexSource) List(opts source.ListOptions) ([]model.Session, error) {
 			}
 		}
 
+		// Read cwd from first line of session file (cheap: one line).
+		cwd := ""
+		if sessionFilePath != "" {
+			cwd = readSessionCwd(sessionFilePath)
+		}
+
 		// Check active status
 		active := false
 		if sessionFilePath != "" {
@@ -163,14 +169,16 @@ func (s *codexSource) List(opts source.ListOptions) ([]model.Session, error) {
 		if opts.Since > 0 && time.Since(updatedAt) > opts.Since {
 			continue
 		}
-		// Codex sessions have no project in history — skip Project filter unless
-		// we can get cwd; apply post-parse in Search/Get.
+		if opts.Project != "" && !strings.Contains(cwd, opts.Project) {
+			continue
+		}
 
 		preview := detect.Truncate(acc.text, 120)
 
 		sessions = append(sessions, model.Session{
 			ID:        acc.sessionID,
 			Tool:      model.ToolCodex,
+			Project:   cwd,
 			Title:     preview,
 			StartedAt: acc.earliest,
 			UpdatedAt: updatedAt,

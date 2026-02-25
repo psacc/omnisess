@@ -20,7 +20,7 @@ type historyEntry struct {
 }
 
 // sessionLine represents a single line in a Codex session JSONL file.
-// Lines are one of: session_meta, response_item, event_msg, or other (skipped).
+// Lines are one of: session_meta, response_item, or other (skipped).
 type sessionLine struct {
 	Timestamp string          `json:"timestamp"` // ISO 8601
 	Type      string          `json:"type"`      // "session_meta", "response_item", "event_msg", ...
@@ -44,13 +44,6 @@ type responseItemPayload struct {
 type responseContent struct {
 	Type string `json:"type"` // "input_text", "text", etc.
 	Text string `json:"text"`
-}
-
-// eventMsgPayload holds the fields from an event_msg line's payload.
-// payload.type is "user_message" or "agent_message"; payload.message is the text.
-type eventMsgPayload struct {
-	Type    string `json:"type"`    // "user_message" or "agent_message"
-	Message string `json:"message"` // simple string content
 }
 
 // parseHistoryLine parses a single line from ~/.codex/history.jsonl.
@@ -98,9 +91,36 @@ func extractSessionIDFromPath(path string) string {
 	return stem
 }
 
+// readSessionCwd reads only the first line of a Codex session file to extract
+// the cwd from the session_meta payload. This is cheap (one line) and avoids
+// parsing the full file during List().
+func readSessionCwd(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 64*1024), 256*1024)
+	if !scanner.Scan() {
+		return ""
+	}
+	var sl sessionLine
+	if err := json.Unmarshal(scanner.Bytes(), &sl); err != nil || sl.Type != "session_meta" {
+		return ""
+	}
+	var meta sessionMetaPayload
+	if err := json.Unmarshal(sl.Payload, &meta); err != nil {
+		return ""
+	}
+	return meta.CWD
+}
+
 // parseSessionFile reads a Codex session JSONL file and returns all conversation
-// messages and the cwd (project path from session_meta). It handles both
-// response_item and event_msg line types.
+// messages and the cwd (project path from session_meta). Only response_item
+// lines with payload.type == "message" are used; event_msg lines are skipped
+// to avoid duplicates (both types carry the same conversation content).
 func parseSessionFile(path string) ([]model.Message, string, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -154,23 +174,6 @@ func parseSessionFile(path string) ([]model.Message, string, error) {
 				Timestamp: ts,
 			})
 
-		case "event_msg":
-			var emp eventMsgPayload
-			if err := json.Unmarshal(sl.Payload, &emp); err != nil {
-				continue
-			}
-			role := mapEventMsgRole(emp.Type)
-			if role == "" {
-				continue
-			}
-			if emp.Message == "" {
-				continue
-			}
-			messages = append(messages, model.Message{
-				Role:      role,
-				Content:   emp.Message,
-				Timestamp: ts,
-			})
 		}
 	}
 
@@ -188,19 +191,6 @@ func mapResponseItemRole(role string) model.Role {
 	case "developer":
 		return model.RoleUser
 	case "assistant":
-		return model.RoleAssistant
-	default:
-		return ""
-	}
-}
-
-// mapEventMsgRole maps an event_msg payload type to a model.Role.
-// "user_message" → RoleUser, "agent_message" → RoleAssistant, others → "".
-func mapEventMsgRole(msgType string) model.Role {
-	switch msgType {
-	case "user_message":
-		return model.RoleUser
-	case "agent_message":
 		return model.RoleAssistant
 	default:
 		return ""

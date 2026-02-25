@@ -213,7 +213,9 @@ func TestParseSessionFile(t *testing.T) {
 		}
 	})
 
-	t.Run("event_msg lines are parsed", func(t *testing.T) {
+	t.Run("event_msg lines are skipped", func(t *testing.T) {
+		// event_msg and response_item carry the same conversation content.
+		// Only response_item is parsed to avoid duplicates.
 		dir := t.TempDir()
 		path := filepath.Join(dir, "event_msg_test.jsonl")
 		content := `{"timestamp":"2026-02-09T10:01:11.966Z","type":"session_meta","payload":{"id":"x","cwd":"/tmp"}}` + "\n" +
@@ -226,17 +228,8 @@ func TestParseSessionFile(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if len(msgs) != 2 {
-			t.Fatalf("expected 2 messages, got %d", len(msgs))
-		}
-		if msgs[0].Role != model.RoleUser {
-			t.Errorf("msgs[0].Role = %q, want %q", msgs[0].Role, model.RoleUser)
-		}
-		if msgs[0].Content != "hello from event" {
-			t.Errorf("msgs[0].Content = %q", msgs[0].Content)
-		}
-		if msgs[1].Role != model.RoleAssistant {
-			t.Errorf("msgs[1].Role = %q, want %q", msgs[1].Role, model.RoleAssistant)
+		if len(msgs) != 0 {
+			t.Fatalf("expected 0 messages (event_msg skipped), got %d", len(msgs))
 		}
 	})
 }
