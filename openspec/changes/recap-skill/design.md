@@ -73,7 +73,7 @@ The skill body explicitly notes that Slack/Jira/Granola/Todoist integration is o
 - **`--since=24h` for "today" is not calendar-accurate** → Acceptable approximation; a strict "since midnight" filter would require Go CLI changes. Users who need exact calendar-day filtering can use `omnisess list --since=<h>` directly.
 - **Slash-command filter (`preview` starts with `/`) may miss edge cases** → Low risk; the vast majority of real coding sessions start with a natural-language description. If false positives emerge, the filter can be tightened in the skill body.
 - **Claude's summary quality depends on session preview richness** → Mitigated by filtering empty previews. Short previews will produce brief summaries, which is still better than no summary.
-- **`plugin.json` version bump to 1.1.0** → Minor semver bump signals a non-breaking feature addition. Existing skill invocations are unaffected.
+- **`plugin.json` version bump to 0.2.0** → Minor semver bump signals a non-breaking feature addition. Existing skill invocations are unaffected.
 
 ## Open Questions
 
