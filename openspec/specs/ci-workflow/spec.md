@@ -29,52 +29,55 @@ The workflow's `on:` block SHALL specify `push` (all branches, no branch filter)
 ---
 
 ### Requirement: CI workflow defines a build job
-The workflow SHALL define a job named `build` that runs `go build ./...` on `ubuntu-latest` using `go-version: "stable"`.
+The workflow SHALL define a single job named `check` (not `build` or `test`) that runs on `ubuntu-latest` using `go-version: "1.22"`. The job SHALL execute `make check` as its sole run step. The job SHALL NOT call `go build ./...`, `go vet ./...`, or `go test ./...` directly — all quality gates are delegated to the Makefile target.
 
-#### Scenario: Build job compiles the module
-- **WHEN** the `build` job runs
-- **THEN** `go build ./...` exits with code 0 on a clean checkout of the repository
-- **THEN** a compilation error in any package causes the job to fail
+#### Scenario: Single check job replaces build and test jobs
+- **WHEN** the workflow YAML is read
+- **THEN** a job named `check` exists
+- **THEN** no job named `build` or `test` exists
+
+#### Scenario: check job runs make check
+- **WHEN** the `check` job executes
+- **THEN** the step `run: make check` is present
+- **THEN** no raw `go build`, `go vet`, or `go test` commands appear as separate steps
 
 ---
 
 ### Requirement: CI workflow defines a test job
-The workflow SHALL define a job named `test` that runs `go vet ./...` followed by `go test -race ./...` on `ubuntu-latest` using `go-version: "stable"`.
+The workflow SHALL NOT define a separate job named `test`. All testing is subsumed by the `check` job via `make check`.
 
-#### Scenario: Vet catches suspicious constructs
-- **WHEN** the `test` job runs
-- **THEN** `go vet ./...` is executed before the test command
-- **THEN** a vet error causes the job to fail before tests run
-
-#### Scenario: Tests run with race detector enabled
-- **WHEN** the `test` job runs
-- **THEN** `go test -race ./...` is executed
-- **THEN** a test failure causes the job to fail
+#### Scenario: No standalone test job
+- **WHEN** the workflow YAML is read
+- **THEN** no job named `test` exists at any level of the file
 
 ---
 
 ### Requirement: CI workflow checks out code before running Go steps
-Both the `build` and `test` jobs SHALL include `actions/checkout@v4` as the first step before any Go command is run.
+The `check` job SHALL include `actions/checkout@v4` as the first step before any Go command is run.
 
 #### Scenario: Checkout step precedes Go steps
 - **WHEN** the workflow YAML is read
-- **THEN** `actions/checkout` appears as the first step in both `build` and `test` jobs
+- **THEN** `actions/checkout` appears as the first step in the `check` job
 
 ---
 
 ### Requirement: CI workflow sets up Go before running Go steps
-Both the `build` and `test` jobs SHALL include `actions/setup-go@v5` with `go-version: "stable"` as a step before any Go command is run.
+The `check` job SHALL include `actions/setup-go@v5` with `go-version: "1.22"` and `cache: true` as a step before any Go command is run.
 
-#### Scenario: Go toolchain available in both jobs
+#### Scenario: Go toolchain pinned to 1.22
 - **WHEN** the workflow YAML is read
-- **THEN** `actions/setup-go` with `go-version: "stable"` appears in both `build` and `test` jobs
-- **THEN** no Go version is hard-pinned to a specific minor version in the workflow file
+- **THEN** `actions/setup-go` appears in the `check` job with `go-version: "1.22"`
+- **THEN** no `"stable"` or floating Go version string appears
+
+#### Scenario: Go module cache is enabled
+- **WHEN** the workflow YAML is read
+- **THEN** `cache: true` is set on the `actions/setup-go` step
 
 ---
 
-### Requirement: CI workflow uses no matrix strategy
-The workflow SHALL NOT define a `strategy.matrix` block. Both jobs run once per trigger event against a single OS and Go version.
+### Requirement: CI workflow installs golangci-lint before running make check
+The `check` job SHALL include a step that installs `golangci-lint` using the official installer script before `make check` is run. This is required because `make lint` expects `golangci-lint` to be on PATH and does not install it automatically.
 
-#### Scenario: No matrix in workflow YAML
+#### Scenario: golangci-lint install step precedes make check
 - **WHEN** the workflow YAML is read
-- **THEN** no `matrix:` key appears at any level of the file
+- **THEN** a step that installs `golangci-lint` appears before the `run: make check` step in the `check` job
