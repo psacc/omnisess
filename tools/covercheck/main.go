@@ -99,7 +99,7 @@ func parse(path string, exemptions []string) (map[string]pkgCoverage, error) {
 
 		// rest: "startline.col,endline.col numStmts count"
 		fields := strings.Fields(rest)
-		if len(fields) < 2 {
+		if len(fields) < 3 {
 			continue
 		}
 		// fields[0] = "1.2,3.4", fields[1] = numStmts, fields[2] = count
@@ -170,7 +170,7 @@ func isExempt(pkg string, exemptions []string) bool {
 		if pkg == e {
 			return true
 		}
-		if strings.Contains(pkg, "/"+e) {
+		if strings.Contains(pkg, "/"+e+"/") || strings.HasSuffix(pkg, "/"+e) {
 			return true
 		}
 	}
