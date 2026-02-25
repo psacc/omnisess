@@ -126,9 +126,14 @@ func TestExecDirect_WithProject(t *testing.T) {
 	t.Setenv("PATH", binDir)
 
 	t.Run("chdir succeeds", func(t *testing.T) {
+		origDir, err := os.Getwd()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chdir(origDir) })
 		sess := &model.Session{ID: "abc-123", Tool: model.ToolClaude, Project: t.TempDir()}
-		err := r.Exec(sess, resume.ModeResume)
-		if err == nil {
+		execErr := r.Exec(sess, resume.ModeResume)
+		if execErr == nil {
 			t.Fatal("Exec returned nil with empty claude binary, want error (exec format error)")
 		}
 	})

@@ -2,7 +2,6 @@ package detect
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -239,23 +238,11 @@ func TestIsSessionTreeRecentlyModified(t *testing.T) {
 
 // TestIsSessionActive_ToolRunning exercises the branch where IsToolRunning
 // returns true so that isSessionTreeRecentlyModified is also evaluated.
-// We spawn a long-sleep subprocess named "codex" and verify IsSessionActive
-// evaluates the file-recency check.
+// We inject toolRunnerFn so no real process needs to be running.
 func TestIsSessionActive_ToolRunning(t *testing.T) {
-	// Write a shell script that just sleeps, so pgrep -x codex can find it.
-	binDir := t.TempDir()
-	fakeBin := filepath.Join(binDir, "codex")
-	script := "#!/bin/sh\nexec sleep 30\n"
-	if err := os.WriteFile(fakeBin, []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	// Start the fake "codex" process.
-	cmd := exec.Command(fakeBin)
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("could not start fake codex process: %v", err)
-	}
-	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+	orig := toolRunnerFn
+	toolRunnerFn = func(name string) bool { return name == "codex" }
+	t.Cleanup(func() { toolRunnerFn = orig })
 
 	dir := t.TempDir()
 
