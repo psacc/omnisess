@@ -4,6 +4,7 @@ package resume
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -16,6 +17,27 @@ func TestExecInTmux_MissingBinary(t *testing.T) {
 	err := ExecInTmux("test-session", "/tmp", []string{"echo", "hello"})
 	if err == nil {
 		t.Fatal("ExecInTmux returned nil when tmux is not in PATH, want error")
+	}
+}
+
+// TestExecInTmux_ExecFormatError exercises the code path where tmux is found
+// by LookPath but syscall.Exec fails. An empty (zero-byte) executable is placed
+// on PATH: LookPath finds it (the execute bit is set), but the kernel rejects it
+// with ENOEXEC (exec format error). This covers the shelljoin call, the argv
+// construction, and the return syscall.Exec(...) statement while keeping the
+// test process alive so that coverage data is preserved.
+func TestExecInTmux_ExecFormatError(t *testing.T) {
+	binDir := t.TempDir()
+	// Write a zero-byte file with the execute bit set.
+	tmuxPath := filepath.Join(binDir, "tmux")
+	if err := os.WriteFile(tmuxPath, []byte{}, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir)
+
+	err := ExecInTmux("sess-test", t.TempDir(), []string{"claude", "--resume", "abc123"})
+	if err == nil {
+		t.Fatal("ExecInTmux with empty tmux binary returned nil, want error (exec format error)")
 	}
 }
 
