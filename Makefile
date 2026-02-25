@@ -25,10 +25,7 @@ cover-html: cover ## Run tests and open HTML coverage report
 
 cover-check: ## Enforce 100% per-package coverage (exempt: gemini, main)
 	go test -coverprofile=coverage.out ./...
-	@go tool cover -func=coverage.out | awk -v threshold=100 \
-	  '/^total:/ { next } \
-	  { n=split($$1,p,"/"); pkg=""; for(i=1;i<n;i++) pkg=(pkg==""?p[i]:pkg"/"p[i]); pct=$$NF; sub(/%$$/,"",pct); sum[pkg]+=pct; count[pkg]++ } \
-	  END { fail=0; for(pkg in sum) { if(pkg~/gemini/) continue; if(pkg=="github.com/psacc/omnisess") continue; avg=sum[pkg]/count[pkg]; if(avg<threshold) { printf "FAIL %s\t%.1f%%\n",pkg,avg; fail=1 } } exit fail }'
+	go run ./tools/covercheck -threshold 100 -exempt "gemini,github.com/psacc/omnisess,tools/covercheck" coverage.out
 
 lint:
 	@command -v golangci-lint >/dev/null 2>&1 || { \
