@@ -81,7 +81,7 @@ Every branch MUST be reviewed before merge. The default reviewer is a **subagent
 The implementing agent:
 
 1. Completes the fix/feature on a branch
-2. Spawns a reviewer subagent (type: `coderabbit:code-reviewer` or equivalent) against the branch diff
+2. Spawns a reviewer subagent against the branch diff
 3. Addresses all findings from the review (amend or new commit)
 4. Proceeds to merge per the rules below
 

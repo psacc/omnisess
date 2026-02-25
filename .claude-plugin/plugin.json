@@ -1,6 +1,5 @@
 {
   "name": "omnisess",
-  "version": "0.1.0",
   "description": "Aggregate AI coding sessions across Claude Code, Cursor, Codex, and Gemini",
   "author": "psacc",
   "license": "MIT",
