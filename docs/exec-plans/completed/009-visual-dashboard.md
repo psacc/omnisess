@@ -1,6 +1,6 @@
 # 009 — Visual Sessions Dashboard (Arc Lifecycle + TUI Enhancement)
 
-**Status**: Not started
+**Status**: Superseded — split into 010-session-names, 011-tui-enhancements, 012-lifecycle-store
 **Priority**: High
 **Estimated effort**: 5-6 person-weeks (MVP Core ~4.75 + Polish ~1.0)
 **PRD**: `docs/design-docs/visual-dashboard-prd.md`
