@@ -1,0 +1,18 @@
+user:
+Help me fix this bug in main.go
+
+assistant:
+Sure, I can help with that. Let me look at the file.
+
+[Tool call: Read]
+{"path": "main.go"}
+[Tool result]
+package main
+
+func main() {}
+
+assistant:
+The file looks fine. What specific bug are you seeing?
+
+user:
+The output is wrong

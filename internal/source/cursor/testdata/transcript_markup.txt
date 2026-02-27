@@ -1,0 +1,5 @@
+User: <user_query>explain this code</user_query>
+
+assistant:
+[Thinking]
+This is a simple Go function.

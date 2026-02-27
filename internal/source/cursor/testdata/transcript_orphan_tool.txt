@@ -1,0 +1,4 @@
+[Tool call: Bash]
+echo hello
+[Tool result]
+hello
