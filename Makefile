@@ -1,4 +1,4 @@
-.PHONY: all build test cover cover-html lint vet fmt check clean setup pr install smoke tag release repo-setup help
+.PHONY: all build test test-integ cover cover-html lint vet fmt check clean setup pr install smoke tag release repo-setup help
 
 # Default: build + vet + lint + test
 all: build vet lint test
@@ -6,11 +6,17 @@ all: build vet lint test
 build: ## Build the omnisess binary
 	go build -o omnisess .
 
-test: ## Run tests with race detector
+test: ## Run unit tests only (skips integration tests that read real local data)
+	go test -race -count=1 -short ./...
+
+# test-integ runs all tests including integration tests that read real local
+# data from ~/.claude, ~/.cursor, ~/.codex, etc. Only run on a developer machine
+# with sessions present. Not suitable for CI.
+test-integ: ## Run all tests including integration tests (requires real local data)
 	go test -race -count=1 ./...
 
 cover: ## Run tests with per-function coverage report
-	go test -coverprofile=coverage.out ./...
+	go test -short -coverprofile=coverage.out ./...
 	go tool cover -func=coverage.out
 
 cover-html: cover ## Run tests and open HTML coverage report
