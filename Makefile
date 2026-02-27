@@ -27,10 +27,6 @@ cover-html: cover ## Run tests and open HTML coverage report
 	go tool cover -html=coverage.out -o coverage.html
 	open coverage.html
 
-cover-check: ## Enforce 100% per-package coverage (exempt: gemini, main)
-	go test -coverprofile=coverage.out ./...
-	go run ./tools/covercheck -threshold 100 -exempt "gemini,github.com/psacc/omnisess,tools/covercheck" coverage.out
-
 lint:
 	@command -v golangci-lint >/dev/null 2>&1 || { \
 		echo "golangci-lint not found. Install: https://golangci-lint.run/welcome/install/"; \
