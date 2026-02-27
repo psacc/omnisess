@@ -19,6 +19,10 @@ cover: ## Run tests with per-function coverage report
 	go test -short -coverprofile=coverage.out ./...
 	go tool cover -func=coverage.out
 
+cover-check: ## Enforce 100% per-package statement coverage (skips integration tests)
+	go test -short -coverprofile=coverage.out ./...
+	go run ./tools/covercheck -threshold 100 -exempt "gemini,github.com/psacc/omnisess,tools/covercheck" coverage.out
+
 cover-html: cover ## Run tests and open HTML coverage report
 	go tool cover -html=coverage.out -o coverage.html
 	open coverage.html
