@@ -133,3 +133,138 @@ func TestIsToolRunning(t *testing.T) {
 		t.Error("expected unknown tool to not be running")
 	}
 }
+
+// TestIsToolRunning_KnownTools exercises the switch branches for each known
+// tool name. We don't assert running/not-running (environment-dependent)
+// — we only verify the function doesn't panic and returns a bool.
+func TestIsToolRunning_KnownTools(t *testing.T) {
+	tools := []string{"claude", "cursor", "codex", "gemini"}
+	for _, tool := range tools {
+		t.Run(tool, func(t *testing.T) {
+			_ = IsToolRunning(tool)
+		})
+	}
+}
+
+// TestIsSessionTreeRecentlyModified tests the unexported helper directly.
+func TestIsSessionTreeRecentlyModified(t *testing.T) {
+	dir := t.TempDir()
+
+	t.Run("main file recently modified", func(t *testing.T) {
+		sessionFile := filepath.Join(dir, "session1.jsonl")
+		if err := os.WriteFile(sessionFile, []byte("{}"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if !isSessionTreeRecentlyModified(sessionFile, time.Hour) {
+			t.Error("expected true when main session file is recent")
+		}
+	})
+
+	t.Run("main file old, subagent recent", func(t *testing.T) {
+		sessionFile := filepath.Join(dir, "session2.jsonl")
+		if err := os.WriteFile(sessionFile, []byte("{}"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		// Backdate the main file.
+		old := time.Now().Add(-1 * time.Hour)
+		if err := os.Chtimes(sessionFile, old, old); err != nil {
+			t.Fatal(err)
+		}
+
+		// Create a recent subagent file.
+		subDir := filepath.Join(dir, "session2", "subagents")
+		if err := os.MkdirAll(subDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		agentFile := filepath.Join(subDir, "agent-001.jsonl")
+		if err := os.WriteFile(agentFile, []byte("{}"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		if !isSessionTreeRecentlyModified(sessionFile, 5*time.Minute) {
+			t.Error("expected true when a subagent file is recent")
+		}
+	})
+
+	t.Run("main file old, subagent also old", func(t *testing.T) {
+		sessionFile := filepath.Join(dir, "session3.jsonl")
+		if err := os.WriteFile(sessionFile, []byte("{}"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		old := time.Now().Add(-1 * time.Hour)
+		if err := os.Chtimes(sessionFile, old, old); err != nil {
+			t.Fatal(err)
+		}
+
+		subDir := filepath.Join(dir, "session3", "subagents")
+		if err := os.MkdirAll(subDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		agentFile := filepath.Join(subDir, "agent-001.jsonl")
+		if err := os.WriteFile(agentFile, []byte("{}"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(agentFile, old, old); err != nil {
+			t.Fatal(err)
+		}
+
+		if isSessionTreeRecentlyModified(sessionFile, 5*time.Minute) {
+			t.Error("expected false when all files are old")
+		}
+	})
+
+	t.Run("main file old, no subagents directory", func(t *testing.T) {
+		sessionFile := filepath.Join(dir, "session4.jsonl")
+		if err := os.WriteFile(sessionFile, []byte("{}"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		old := time.Now().Add(-1 * time.Hour)
+		if err := os.Chtimes(sessionFile, old, old); err != nil {
+			t.Fatal(err)
+		}
+
+		if isSessionTreeRecentlyModified(sessionFile, 5*time.Minute) {
+			t.Error("expected false when main file is old and no subagents exist")
+		}
+	})
+
+	t.Run("nonexistent session file, no subagents", func(t *testing.T) {
+		sessionFile := filepath.Join(dir, "nonexistent.jsonl")
+		if isSessionTreeRecentlyModified(sessionFile, time.Hour) {
+			t.Error("expected false for nonexistent session file with no subagents")
+		}
+	})
+}
+
+// TestIsSessionActive_ToolRunning exercises the branch where IsToolRunning
+// returns true so that isSessionTreeRecentlyModified is also evaluated.
+// We inject toolRunnerFn so no real process needs to be running.
+func TestIsSessionActive_ToolRunning(t *testing.T) {
+	orig := toolRunnerFn
+	toolRunnerFn = func(name string) bool { return name == "codex" }
+	t.Cleanup(func() { toolRunnerFn = orig })
+
+	dir := t.TempDir()
+
+	// Recent session file → should return true.
+	recentFile := filepath.Join(dir, "session.jsonl")
+	if err := os.WriteFile(recentFile, []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !IsSessionActive("codex", recentFile) {
+		t.Error("expected IsSessionActive to return true when tool is running and file is recent")
+	}
+
+	// Old session file → should return false even though tool is running.
+	oldFile := filepath.Join(dir, "old.jsonl")
+	if err := os.WriteFile(oldFile, []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-1 * time.Hour)
+	if err := os.Chtimes(oldFile, old, old); err != nil {
+		t.Fatal(err)
+	}
+	if IsSessionActive("codex", oldFile) {
+		t.Error("expected IsSessionActive to return false when tool is running but file is old")
+	}
+}

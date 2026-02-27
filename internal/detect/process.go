@@ -75,10 +75,15 @@ func isSessionTreeRecentlyModified(sessionFilePath string, threshold time.Durati
 	return false
 }
 
+// toolRunnerFn is the function used by IsSessionActive to check whether a tool
+// process is currently running. Tests may replace it to avoid spawning real
+// processes under a specific pgrep-visible name.
+var toolRunnerFn = IsToolRunning
+
 // IsSessionActive returns true if the tool is running AND the session file
 // (or its subagent files) was recently modified.
 func IsSessionActive(toolName string, sessionFilePath string) bool {
-	if !IsToolRunning(toolName) {
+	if !toolRunnerFn(toolName) {
 		return false
 	}
 	return isSessionTreeRecentlyModified(sessionFilePath, ActiveThreshold)
