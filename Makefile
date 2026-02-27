@@ -1,4 +1,4 @@
-.PHONY: all build test test-integ cover cover-html lint vet fmt check clean setup pr install smoke tag release repo-setup help
+.PHONY: all build test test-integ cover cover-check cover-html lint vet fmt check clean setup pr install smoke tag release repo-setup help
 
 # Default: build + vet + lint + test
 all: build vet lint test
@@ -22,6 +22,10 @@ cover: ## Run tests with per-function coverage report
 cover-html: cover ## Run tests and open HTML coverage report
 	go tool cover -html=coverage.out -o coverage.html
 	open coverage.html
+
+cover-check: ## Enforce 100% per-package coverage (exempt: gemini, main)
+	go test -coverprofile=coverage.out ./...
+	go run ./tools/covercheck -threshold 100 -exempt "gemini,github.com/psacc/omnisess,tools/covercheck" coverage.out
 
 lint:
 	@command -v golangci-lint >/dev/null 2>&1 || { \
