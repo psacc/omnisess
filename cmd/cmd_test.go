@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 
 	"github.com/psacc/omnisess/internal/model"
 	"github.com/psacc/omnisess/internal/output"
+	"github.com/psacc/omnisess/internal/resume"
 	"github.com/psacc/omnisess/internal/source"
 )
 
@@ -89,9 +91,77 @@ func (a *activeSource) Search(_ string, _ source.ListOptions) ([]model.SearchRes
 	}, nil
 }
 
+// mockResumer is a no-op resume.Resumer used to exercise the resumer.Exec()
+// dispatch path in handleTUIResult without replacing the test process.
+// Uses a synthetic tool name to avoid colliding with real registered resumers.
+// claude/cursor resumers are registered first (via blank imports in tui_test.go),
+// so init() order is safe.
+const mockResumerTool = model.Tool("test-mock-resumer")
+
+type mockResumer struct{}
+
+func (r *mockResumer) Tool() model.Tool                           { return mockResumerTool }
+func (r *mockResumer) Modes() []resume.Mode                       { return []resume.Mode{resume.ModeResume} }
+func (r *mockResumer) Exec(_ *model.Session, _ resume.Mode) error { return nil }
+
+// getErrSource always returns an error from Get (used to cover showSession error path).
+const getErrSourceName = model.Tool("test-get-err-src")
+
+type getErrSource struct{}
+
+func (g *getErrSource) Name() model.Tool                                   { return getErrSourceName }
+func (g *getErrSource) List(_ source.ListOptions) ([]model.Session, error) { return nil, nil }
+func (g *getErrSource) Get(_ string) (*model.Session, error) {
+	return nil, errors.New("mock get error")
+}
+func (g *getErrSource) Search(_ string, _ source.ListOptions) ([]model.SearchResult, error) {
+	return nil, nil
+}
+
+// getSessionSource always returns a valid session from Get (used to cover showSession success path).
+const getSessionSourceName = model.Tool("test-get-session-src")
+
+type getSessionSource struct{}
+
+func (g *getSessionSource) Name() model.Tool                                   { return getSessionSourceName }
+func (g *getSessionSource) List(_ source.ListOptions) ([]model.Session, error) { return nil, nil }
+func (g *getSessionSource) Get(_ string) (*model.Session, error) {
+	return &model.Session{ID: "test-session-id", Tool: getSessionSourceName}, nil
+}
+func (g *getSessionSource) Search(_ string, _ source.ListOptions) ([]model.SearchResult, error) {
+	return nil, nil
+}
+
 func init() {
 	source.Register(&errSource{})
 	source.Register(&activeSource{})
+	source.Register(&getErrSource{})
+	source.Register(&getSessionSource{})
+	resume.Register(&mockResumer{})
+}
+
+// ---------------------------------------------------------------------------
+// showSession
+// ---------------------------------------------------------------------------
+
+// TestShowSession_GetError covers the "failed to get session" error path.
+func TestShowSession_GetError(t *testing.T) {
+	err := showSession(&getErrSource{}, "test-get-err-src:abc", "abc", output.FormatTable)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to get session") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// TestShowSession_Found covers the "session found and rendered" success path.
+func TestShowSession_Found(t *testing.T) {
+	silenceOutput(t)
+	err := showSession(&getSessionSource{}, "test-get-session-src:test-session-id", "test-session-id", output.FormatTable)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
 }
 
 // ---------------------------------------------------------------------------

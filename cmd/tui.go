@@ -24,6 +24,18 @@ import (
 
 const defaultTUILimit = 50
 
+// Package-level injection points; overridable in tests (do not call t.Parallel
+// in tests that override these vars).
+var (
+	// execFn is assigned directly so there is no closure body to cover.
+	execFn     func(argv0 string, argv []string, envv []string) error = syscall.Exec
+	goosStr                                                           = runtime.GOOS
+	runProgram                                                        = func(m tea.Model, opts ...tea.ProgramOption) (tea.Model, error) {
+		return tea.NewProgram(m, opts...).Run()
+	}
+	execInAoE = resume.ExecInAoE
+)
+
 var tuiCmd = &cobra.Command{
 	Use:   "tui",
 	Short: "Interactive session picker",
@@ -92,13 +104,19 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	// Run Bubble Tea program.
 	toolModes := buildToolModes()
 	m := tui.New(all, toolModes)
-	p := tea.NewProgram(m, tea.WithAltScreen())
 
-	finalModel, err := p.Run()
+	finalModel, err := runProgram(m, tea.WithAltScreen())
 	if err != nil {
 		return fmt.Errorf("TUI error: %w", err)
 	}
 
+	return handleTUIResult(finalModel)
+}
+
+// handleTUIResult processes the selected session and mode from a completed TUI
+// run. Separated from runTUI for testability; depends on the execInAoE and
+// execFn package-level injection vars.
+func handleTUIResult(finalModel tea.Model) error {
 	result := finalModel.(tui.Model)
 	sess := result.Selected()
 	if sess == nil {
@@ -110,7 +128,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	// AoE mode is handled directly (no resumer needed).
 	if mode == resume.ModeAoE {
 		title := sess.ShortProject() + " (" + string(sess.Tool) + ")"
-		return resume.ExecInAoE(string(sess.Tool), sess.Project, title)
+		return execInAoE(string(sess.Tool), sess.Project, title)
 	}
 
 	// Open mode: open project directory (no resumer needed).
@@ -136,14 +154,14 @@ func openProjectDir(dir string) error {
 		if err != nil {
 			return fmt.Errorf("$EDITOR=%q not found: %w", editor, err)
 		}
-		return syscall.Exec(editorPath, []string{editor, dir}, os.Environ())
+		return execFn(editorPath, []string{editor, dir}, os.Environ())
 	}
 
 	// macOS: use "open" to reveal in Finder / default handler.
-	if runtime.GOOS == "darwin" {
+	if goosStr == "darwin" {
 		openPath, err := exec.LookPath("open")
 		if err == nil {
-			return syscall.Exec(openPath, []string{"open", dir}, os.Environ())
+			return execFn(openPath, []string{"open", dir}, os.Environ())
 		}
 	}
 

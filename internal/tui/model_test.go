@@ -560,3 +560,113 @@ func TestFooterHelp_UnknownTool(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
+
+// TestInit verifies that Init returns nil (no initial commands).
+func TestInit(t *testing.T) {
+	m := New(testSessions(), testToolModes())
+	cmd := m.Init()
+	if cmd != nil {
+		t.Errorf("Init() = %v, want nil", cmd)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Update — unhandled key
+// ---------------------------------------------------------------------------
+
+// TestUpdate_UnhandledKey verifies that an unhandled key (e.g. "x") returns
+// the model unchanged and a nil command.
+func TestUpdate_UnhandledKey(t *testing.T) {
+	m := New(testSessions(), testToolModes())
+	updated, cmd := m.Update(keyMsg("x"))
+	if cmd != nil {
+		t.Errorf("Update(unhandled key): cmd = %v, want nil", cmd)
+	}
+	// Cursor should be unchanged.
+	got := updated.(Model).cursor
+	if got != 0 {
+		t.Errorf("Update(unhandled key): cursor = %d, want 0", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// View — with inline message
+// ---------------------------------------------------------------------------
+
+// TestView_WithMessage verifies that an inline message is rendered in View
+// and also exercises the extra++ path in visibleRows.
+func TestView_WithMessage(t *testing.T) {
+	m := New(testSessions(), testToolModes())
+	m.message = "something went wrong"
+	view := m.View()
+	if !strings.Contains(view, "something went wrong") {
+		t.Errorf("View() with message: expected message in output, got:\n%s", view)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// renderRow — empty preview
+// ---------------------------------------------------------------------------
+
+// TestRenderRow_EmptyPreview verifies that a session with empty Preview
+// falls back to QualifiedID() in the rendered row.
+func TestRenderRow_EmptyPreview(t *testing.T) {
+	sess := model.Session{
+		ID:        "short01",
+		Tool:      model.ToolClaude,
+		Project:   "/tmp/testproject",
+		Preview:   "", // empty: should fall back to QualifiedID
+		UpdatedAt: time.Now(),
+	}
+	m := New([]model.Session{sess}, testToolModes())
+	row := m.renderRow(0, 30)
+	if !strings.Contains(row, sess.QualifiedID()) {
+		t.Errorf("renderRow empty preview: expected QualifiedID %q in row %q", sess.QualifiedID(), row)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// visibleRows — tiny height clamping
+// ---------------------------------------------------------------------------
+
+// TestVisibleRows_TinyHeight verifies that visibleRows returns 1 when the
+// terminal height is smaller than chromeLines.
+func TestVisibleRows_TinyHeight(t *testing.T) {
+	m := New(testSessions(), testToolModes())
+	m.height = 3 // less than chromeLines (4)
+	got := m.visibleRows()
+	if got != 1 {
+		t.Errorf("visibleRows() with height=3: got %d, want 1", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// clampViewport — scroll-up path
+// ---------------------------------------------------------------------------
+
+// TestClampViewport_ScrollUp verifies the scroll-up path in clampViewport:
+// when cursor moves above the current offset, offset is adjusted downward.
+func TestClampViewport_ScrollUp(t *testing.T) {
+	sessions := testSessions()
+	m := New(sessions, testToolModes())
+	m.height = 5 // small viewport so offset can be > 0
+
+	// Scroll down past visible rows to push offset > 0.
+	for i := 0; i < len(sessions); i++ {
+		m.cursor = i
+		m.clampViewport()
+	}
+	if m.offset == 0 {
+		t.Skip("all sessions fit in viewport; scroll-up path not reachable")
+	}
+	// Now move cursor back above offset.
+	m.cursor = 0
+	m.clampViewport()
+	if m.offset != 0 {
+		t.Errorf("clampViewport scroll-up: offset = %d, want 0", m.offset)
+	}
+}

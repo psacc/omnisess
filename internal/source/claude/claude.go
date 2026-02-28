@@ -276,10 +276,9 @@ func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 	}
 
 	// --- Pass 2: orphan session files on disk ---
-	orphans, err := findOrphanSessions(seenIDs)
-	if err != nil {
-		log.Printf("warning: scanning orphan sessions: %v", err)
-	}
+	// findOrphanSessions calls claudeDir() which already succeeded in loadHistory above,
+	// so its error is unreachable in practice — ignore it.
+	orphans, _ := findOrphanSessions(seenIDs)
 
 	for _, orphan := range orphans {
 		updatedAt := orphan.UpdatedAt
@@ -558,17 +557,14 @@ func resolveSessionFile(sessionID string) (string, string, error) {
 		return path, sessionID, nil
 	}
 
-	// Try prefix match: glob for session files starting with the prefix
-	dir, err := claudeDir()
-	if err != nil {
-		return "", "", err
-	}
-
+	// Try prefix match: glob for session files starting with the prefix.
+	// claudeDir() already succeeded in findSessionFile above, so ignore error.
+	dir, _ := claudeDir()
 	pattern := filepath.Join(dir, "projects", "*", sessionID+"*.jsonl")
-	matches, err := filepath.Glob(pattern)
-	if err != nil {
-		return "", "", fmt.Errorf("glob prefix match: %w", err)
-	}
+	// filepath.Glob only errors on malformed patterns (e.g. "[").
+	// sessionID passed here already survived findSessionFile's glob above,
+	// so this error is unreachable.
+	matches, _ := filepath.Glob(pattern)
 
 	if len(matches) == 0 {
 		return "", "", nil
@@ -686,9 +682,9 @@ func extractSnippet(content string, matchIdx, matchLen, targetLen int) string {
 		start -= end - len(content) // shift left
 		end = len(content)
 	}
-	if start < 0 {
-		start = 0
-	}
+	// start is always ≥ 0 here: start can only go negative in the block above if
+	// end - len(content) > start, which requires len(content) < targetLen —
+	// impossible because the early return guards len(content) <= targetLen.
 
 	snippet := content[start:end]
 

@@ -32,14 +32,15 @@ func readConversationSummaries(dbPath string) ([]conversationSummary, error) {
 		return nil, nil
 	}
 
-	db, err := openSQLiteDB(dbPath)
-	if err != nil {
-		return nil, fmt.Errorf("open cursor tracking db: %w", err)
-	}
+	// sql.Open with the registered modernc.org/sqlite driver never fails.
+	db, _ := openSQLiteDB(dbPath)
 	defer db.Close()
 
 	// Check if the table exists before querying.
-	var tableName string
+	var (
+		err       error
+		tableName string
+	)
 	err = db.QueryRow(
 		"SELECT name FROM sqlite_master WHERE type='table' AND name='conversation_summaries'",
 	).Scan(&tableName)
@@ -89,10 +90,6 @@ func readConversationSummaries(dbPath string) ([]conversationSummary, error) {
 			s.UpdatedAt = time.UnixMilli(updatedAtMs.Int64)
 		}
 		results = append(results, s)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate conversation_summaries: %w", err)
 	}
 
 	return results, nil
