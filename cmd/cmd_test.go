@@ -40,11 +40,10 @@ func (e *errSource) Search(_ string, _ source.ListOptions) ([]model.SearchResult
 	return nil, errors.New("mock search error")
 }
 
-// activeSource is a source.Source that always returns one active session.
-// It is registered alongside errSource to provide a second source with active
-// sessions when running with flagTool="", enabling the limit truncation branch
-// in runActive to be reached (two sources each returning 1 active session →
-// len(all)=2 > opts.Limit=1).
+// activeSource is a source.Source that always returns two active sessions from
+// List() and two SearchResults from Search(). Returning two guarantees that the
+// limit-truncation branch (all = all[:limit]) is exercised when limit=1, even
+// when no real local data is present (e.g., in CI with -short / cover-check).
 const activeSourceName = model.Tool("test-active-src")
 
 type activeSource struct{}
@@ -52,19 +51,23 @@ type activeSource struct{}
 func (a *activeSource) Name() model.Tool { return activeSourceName }
 
 func (a *activeSource) List(opts source.ListOptions) ([]model.Session, error) {
-	sess := model.Session{
-		ID:        "test-active-session-id",
-		Tool:      activeSourceName,
-		Project:   "/tmp/test-project",
-		Active:    true,
-		UpdatedAt: time.Now(),
-		StartedAt: time.Now(),
-		Preview:   "test active session",
+	makeSess := func(id string) model.Session {
+		return model.Session{
+			ID:        id,
+			Tool:      activeSourceName,
+			Project:   "/tmp/test-project",
+			Active:    true,
+			UpdatedAt: time.Now(),
+			StartedAt: time.Now(),
+			Preview:   "test active session",
+		}
 	}
-	if opts.Active && !sess.Active {
+	s1 := makeSess("test-active-session-id-1")
+	s2 := makeSess("test-active-session-id-2")
+	if opts.Active && !s1.Active {
 		return nil, nil
 	}
-	return []model.Session{sess}, nil
+	return []model.Session{s1, s2}, nil
 }
 
 func (a *activeSource) Get(_ string) (*model.Session, error) {
@@ -72,7 +75,18 @@ func (a *activeSource) Get(_ string) (*model.Session, error) {
 }
 
 func (a *activeSource) Search(_ string, _ source.ListOptions) ([]model.SearchResult, error) {
-	return nil, nil
+	makeSess := func(id string) model.Session {
+		return model.Session{
+			ID:        id,
+			Tool:      activeSourceName,
+			Project:   "/tmp/test-project",
+			UpdatedAt: time.Now(),
+		}
+	}
+	return []model.SearchResult{
+		{Session: makeSess("test-active-session-id-1"), Matches: []model.SearchMatch{{Snippet: "match one"}}},
+		{Session: makeSess("test-active-session-id-2"), Matches: []model.SearchMatch{{Snippet: "match two"}}},
+	}, nil
 }
 
 func init() {
@@ -314,13 +328,10 @@ func TestParseQualifiedID(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestRunList_HappyPath(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	silenceOutput(t)
 	resetFlags()
-	// Use codex tool — likely returns empty list (no ~/.codex) with no error.
-	flagTool = "codex"
+	// Use mock activeSource — guaranteed to return sessions without real local data.
+	flagTool = string(activeSourceName)
 	err := runList(newNoopCmd(), nil)
 	if err != nil {
 		t.Errorf("runList returned unexpected error: %v", err)
@@ -328,12 +339,9 @@ func TestRunList_HappyPath(t *testing.T) {
 }
 
 func TestRunList_WithLimit(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	silenceOutput(t)
 	resetFlags()
-	flagTool = "codex"
+	flagTool = string(activeSourceName)
 	flagLimit = 1
 	err := runList(newNoopCmd(), nil)
 	if err != nil {
@@ -342,29 +350,20 @@ func TestRunList_WithLimit(t *testing.T) {
 }
 
 // TestRunList_LimitApplied ensures the limit truncation branch (all = all[:limit])
-// is exercised. Uses all sources so that sessions from multiple sources combine
-// to exceed the limit of 1, triggering the truncation in runList itself
-// (the sources each return at most 1 session, but 2+ sources with data
-// results in len(all) > 1 > limit).
+// is exercised. activeSource returns 2 sessions, so with limit=1 the truncation
+// triggers reliably without any real local data.
 func TestRunList_LimitApplied(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	silenceOutput(t)
 	resetFlags()
-	// flagTool = "" → all sources; claude + cursor both have sessions here,
-	// giving len(all) >= 2 > opts.Limit = 1.
+	flagTool = string(activeSourceName)
 	flagLimit = 1
 	err := runList(newNoopCmd(), nil)
 	if err != nil {
-		t.Errorf("runList (all sources, limit=1) returned unexpected error: %v", err)
+		t.Errorf("runList (limit applied) returned unexpected error: %v", err)
 	}
 }
 
 func TestRunList_SourceError(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	silenceOutput(t)
 	resetFlags()
 	// errSource always returns an error from List.
@@ -377,12 +376,9 @@ func TestRunList_SourceError(t *testing.T) {
 }
 
 func TestRunList_JSONFormat(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	silenceOutput(t)
 	resetFlags()
-	flagTool = "codex"
+	flagTool = string(activeSourceName)
 	flagJSON = true
 	err := runList(newNoopCmd(), nil)
 	if err != nil {
@@ -395,12 +391,10 @@ func TestRunList_JSONFormat(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestRunActive_HappyPath(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	silenceOutput(t)
 	resetFlags()
-	flagTool = "codex"
+	// activeSource returns active sessions — guaranteed without real local data.
+	flagTool = string(activeSourceName)
 	err := runActive(newNoopCmd(), nil)
 	if err != nil {
 		t.Errorf("runActive returned unexpected error: %v", err)
@@ -408,9 +402,6 @@ func TestRunActive_HappyPath(t *testing.T) {
 }
 
 func TestRunActive_SourceError(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	silenceOutput(t)
 	resetFlags()
 	flagTool = string(errSourceName)
@@ -421,12 +412,9 @@ func TestRunActive_SourceError(t *testing.T) {
 }
 
 func TestRunActive_WithLimit(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	silenceOutput(t)
 	resetFlags()
-	flagTool = "codex"
+	flagTool = string(activeSourceName)
 	flagLimit = 1
 	err := runActive(newNoopCmd(), nil)
 	if err != nil {
@@ -435,20 +423,16 @@ func TestRunActive_WithLimit(t *testing.T) {
 }
 
 // TestRunActive_LimitApplied exercises the limit truncation and sort-closure
-// branches. Uses all sources with limit=1 so that the combined active sessions
-// from multiple tools exceed the limit.
+// branches. activeSource returns 2 active sessions, so limit=1 triggers
+// truncation without needing real local data.
 func TestRunActive_LimitApplied(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	silenceOutput(t)
 	resetFlags()
-	// flagTool = "" → all sources with Active=true filter.
-	// Multiple sources may return active sessions, giving len(all) > 1.
+	flagTool = string(activeSourceName)
 	flagLimit = 1
 	err := runActive(newNoopCmd(), nil)
 	if err != nil {
-		t.Errorf("runActive (all sources, limit=1) returned unexpected error: %v", err)
+		t.Errorf("runActive (limit applied) returned unexpected error: %v", err)
 	}
 }
 
@@ -457,12 +441,10 @@ func TestRunActive_LimitApplied(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestRunSearch_HappyPath(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	silenceOutput(t)
 	resetFlags()
-	flagTool = "codex"
+	// activeSource.Search returns results — no real local data needed.
+	flagTool = string(activeSourceName)
 	err := runSearch(newNoopCmd(), []string{"some-query"})
 	if err != nil {
 		t.Errorf("runSearch returned unexpected error: %v", err)
@@ -470,9 +452,6 @@ func TestRunSearch_HappyPath(t *testing.T) {
 }
 
 func TestRunSearch_SourceError(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	silenceOutput(t)
 	resetFlags()
 	flagTool = string(errSourceName)
@@ -483,12 +462,9 @@ func TestRunSearch_SourceError(t *testing.T) {
 }
 
 func TestRunSearch_WithLimitAndJSON(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	silenceOutput(t)
 	resetFlags()
-	flagTool = "codex"
+	flagTool = string(activeSourceName)
 	flagLimit = 1
 	flagJSON = true
 	err := runSearch(newNoopCmd(), []string{"query"})
@@ -498,25 +474,33 @@ func TestRunSearch_WithLimitAndJSON(t *testing.T) {
 }
 
 // TestRunSearch_LimitApplied exercises the limit truncation and sort-closure
-// by running a common term against all sources with limit=1.
+// branches in runSearch. activeSource returns 2 search results, so limit=1
+// triggers truncation without needing real local data.
 func TestRunSearch_LimitApplied(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	silenceOutput(t)
 	resetFlags()
-	// flagTool = "" → all sources; "the" is common enough to match in
-	// multiple sessions across multiple tools, giving len(all) > 1 > limit.
+	flagTool = string(activeSourceName)
 	flagLimit = 1
 	err := runSearch(newNoopCmd(), []string{"the"})
 	if err != nil {
-		t.Errorf("runSearch (all sources, limit=1) returned unexpected error: %v", err)
+		t.Errorf("runSearch (limit applied) returned unexpected error: %v", err)
 	}
 }
 
 // ---------------------------------------------------------------------------
 // runShow
 // ---------------------------------------------------------------------------
+
+// TestRunShow_NotFound_Stub covers the source-lookup and Get/nil branches of
+// runShow using the gemini stub, which returns nil, nil from Get() instantly
+// with no disk access.
+func TestRunShow_NotFound_Stub(t *testing.T) {
+	resetFlags()
+	err := runShow(newNoopCmd(), []string{"gemini:any-session-id"})
+	if err == nil {
+		t.Error("expected 'session not found' error, got nil")
+	}
+}
 
 func TestRunShow_InvalidFormat(t *testing.T) {
 	resetFlags()
@@ -535,9 +519,12 @@ func TestRunShow_UnknownTool(t *testing.T) {
 	}
 }
 
+// TestRunShow_SessionNotFound covers the "session not found" path in runShow.
+// Claude's Get() returns nil, nil for a non-existent session, so runShow
+// returns a "session not found" error. Uses a UUIDv4 that cannot exist on disk.
 func TestRunShow_SessionNotFound(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+		t.Skip("skipping: scans real ~/.claude sessions")
 	}
 	silenceOutput(t)
 	resetFlags()
@@ -548,9 +535,11 @@ func TestRunShow_SessionNotFound(t *testing.T) {
 	}
 }
 
+// TestRunShow_GetError covers the "Get returns an error" path in runShow.
+// Cursor's Get() returns an error when the session file is missing.
 func TestRunShow_GetError(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+		t.Skip("skipping: scans real ~/.cursor sessions")
 	}
 	silenceOutput(t)
 	resetFlags()
@@ -567,7 +556,7 @@ func TestRunShow_GetError(t *testing.T) {
 // this test is a no-op if no claude sessions exist.
 func TestRunShow_FoundSession(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+		t.Skip("skipping: reads real ~/.claude sessions")
 	}
 	silenceOutput(t)
 	resetFlags()
