@@ -117,9 +117,6 @@ func (s *cursorSource) List(opts source.ListOptions) ([]model.Session, error) {
 			for _, m := range messages {
 				if m.Role == model.RoleUser && strings.TrimSpace(m.Content) != "" {
 					preview = detect.Truncate(m.Content, 120)
-					if !m.Timestamp.IsZero() {
-						startedAt = m.Timestamp
-					}
 					break
 				}
 			}
@@ -252,15 +249,13 @@ func (s *cursorSource) Get(sessionID string) (*model.Session, error) {
 
 // Search returns sessions containing the query string in their transcripts.
 func (s *cursorSource) Search(query string, opts source.ListOptions) ([]model.SearchResult, error) {
-	sessions, err := s.List(opts)
-	if err != nil {
-		return nil, err
-	}
-
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("cursor: resolve home dir: %w", err)
 	}
+
+	// List only fails if os.UserHomeDir() fails, which already succeeded above.
+	sessions, _ := s.List(opts)
 
 	queryLower := strings.ToLower(query)
 	var results []model.SearchResult

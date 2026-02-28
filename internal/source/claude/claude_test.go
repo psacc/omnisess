@@ -2123,3 +2123,40 @@ func TestResolvePathGreedyClaude_SortSwap(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// List — findSessionFile warning path
+// ---------------------------------------------------------------------------
+
+// TestList_FindSessionFileWarning verifies that a history entry with a
+// session ID containing "[" causes resolveSessionFile to return an error
+// (malformed glob pattern), the warning is logged, and the entry is skipped.
+// The remaining valid sessions are still returned.
+func TestList_FindSessionFileWarning(t *testing.T) {
+	home := setupFakeHome(t)
+	setHome(t, home)
+
+	// Append a history entry with a session ID that will make filepath.Glob
+	// fail (the "[" character makes the pattern syntactically invalid).
+	histPath := filepath.Join(home, ".claude", "history.jsonl")
+	badEntry := `{"display":"bad session","timestamp":1708000400000,"project":"/Users/foo/myproject","sessionId":"bad[id"}` + "\n"
+	f, err := os.OpenFile(histPath, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatalf("open history.jsonl: %v", err)
+	}
+	if _, err := f.WriteString(badEntry); err != nil {
+		f.Close()
+		t.Fatalf("append bad entry: %v", err)
+	}
+	f.Close()
+
+	s := &claudeSource{}
+	sessions, err := s.List(source.ListOptions{})
+	if err != nil {
+		t.Fatalf("List() unexpected error: %v", err)
+	}
+	// Valid sessions should still be returned; the bad entry is skipped.
+	if len(sessions) == 0 {
+		t.Error("List() returned 0 sessions; expected valid sessions despite bad entry")
+	}
+}

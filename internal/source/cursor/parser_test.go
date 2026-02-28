@@ -1829,3 +1829,78 @@ func TestList_OrphanChatMetaNameNoPreview(t *testing.T) {
 		t.Errorf("Preview = %q, want 'Session from chatMeta'", sessions[0].Preview)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// readConversationSummaries — scan error (NULL conversationId)
+// ---------------------------------------------------------------------------
+
+// TestReadConversationSummaries_ScanError verifies that a NULL value in the
+// conversationId column causes rows.Scan to fail, returning a
+// "scan conversation_summaries row" error.
+func TestReadConversationSummaries_ScanError(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, ".cursor", "ai-tracking")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	dbPath := filepath.Join(dir, "ai-code-tracking.db")
+
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	_, err = db.Exec(`CREATE TABLE conversation_summaries (
+		conversationId TEXT,
+		title         TEXT,
+		tldr          TEXT,
+		overview      TEXT,
+		model         TEXT,
+		mode          TEXT,
+		updatedAt     INTEGER
+	)`)
+	if err != nil {
+		db.Close()
+		t.Fatalf("create table: %v", err)
+	}
+	// NULL conversationId: scanning into plain string fails.
+	_, err = db.Exec(`INSERT INTO conversation_summaries VALUES (NULL,'t','','','m','c',0)`)
+	if err != nil {
+		db.Close()
+		t.Fatalf("insert: %v", err)
+	}
+	db.Close()
+
+	_, err = readConversationSummaries(dbPath)
+	if err == nil {
+		t.Fatal("expected scan error for NULL conversationId, got nil")
+	}
+	if !strings.Contains(err.Error(), "scan conversation_summaries row") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// parseTranscript — scanner error (line > 1 MB)
+// ---------------------------------------------------------------------------
+
+// TestParseTranscript_ScannerError verifies that a transcript line exceeding
+// the scanner's 1 MB buffer limit causes scanner.Err() to return an error.
+func TestParseTranscript_ScannerError(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "big-transcript.txt")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Write one content line longer than 1 MB (scanner buffer limit = 1024*1024).
+	bigLine := strings.Repeat("a", 1024*1024+1)
+	if _, err := f.WriteString("user:\n" + bigLine + "\n"); err != nil {
+		f.Close()
+		t.Fatal(err)
+	}
+	f.Close()
+
+	_, err = parseTranscript(path)
+	if err == nil {
+		t.Fatal("expected scanner error for line > 1 MB, got nil")
+	}
+}

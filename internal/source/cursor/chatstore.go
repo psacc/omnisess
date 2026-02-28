@@ -60,13 +60,14 @@ func readChatStoreMeta(dbPath string) (chatMeta, error) {
 		return chatMeta{}, fmt.Errorf("store.db not found")
 	}
 
-	db, err := openSQLiteDB(dbPath)
-	if err != nil {
-		return chatMeta{}, err
-	}
+	// sql.Open with the registered modernc.org/sqlite driver never fails.
+	db, _ := openSQLiteDB(dbPath)
 	defer db.Close()
 
-	var hexValue string
+	var (
+		err      error
+		hexValue string
+	)
 	err = db.QueryRow("SELECT value FROM meta WHERE key='0'").Scan(&hexValue)
 	if err != nil {
 		return chatMeta{}, fmt.Errorf("query meta: %w", err)

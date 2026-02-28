@@ -907,3 +907,52 @@ func TestParseCodexTimestamp(t *testing.T) {
 		})
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Search — missing session file (continue path)
+// ---------------------------------------------------------------------------
+
+// TestSearch_MissingSessionFile verifies that Search skips a session when
+// findSessionFile returns "" (the session JSONL file does not exist on disk).
+func TestSearch_MissingSessionFile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	// Create history with one entry — but no corresponding session file.
+	codexBaseDir := filepath.Join(home, ".codex")
+	if err := os.MkdirAll(codexBaseDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	histEntry := `{"session_id":"orphan-0000-0000-0000-000000000000","ts":1739091671,"text":"find this text"}` + "\n"
+	if err := os.WriteFile(filepath.Join(codexBaseDir, "history.jsonl"), []byte(histEntry), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	s := &codexSource{}
+	results, err := s.Search("find this text", source.ListOptions{})
+	if err != nil {
+		t.Fatalf("Search() unexpected error: %v", err)
+	}
+	// No results: the session file is absent so the entry is skipped.
+	if len(results) != 0 {
+		t.Errorf("Search() with missing session file: got %d results, want 0", len(results))
+	}
+}
+
+// TestSearch_ProjectFilterSkips covers the Project filter in Search that
+// skips sessions whose cwd does not match the Project option.
+func TestSearch_ProjectFilterSkips(t *testing.T) {
+	home, _ := setupFakeHome(t)
+	t.Setenv("HOME", home)
+
+	s := &codexSource{}
+	// The fixture session's cwd is /Users/testuser/prj/myproject.
+	// Filter by a project string that doesn't match → session skipped.
+	results, err := s.Search("compare AGENTS", source.ListOptions{Project: "nonexistent-project-xyz"})
+	if err != nil {
+		t.Fatalf("Search() unexpected error: %v", err)
+	}
+	if len(results) != 0 {
+		t.Errorf("Search() with non-matching project filter: got %d results, want 0", len(results))
+	}
+}
