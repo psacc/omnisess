@@ -320,10 +320,8 @@ func (s *codexSource) Search(query string, opts source.ListOptions) ([]model.Sea
 			continue
 		}
 
-		// Apply Project filter using cwd now that we have it
-		if opts.Project != "" && !strings.Contains(cwd, opts.Project) {
-			continue
-		}
+		// Project filter already applied by List() with the same opts.
+		_ = cwd
 
 		var matches []model.SearchMatch
 		for i, msg := range messages {
@@ -371,9 +369,7 @@ func extractSnippet(content string, matchIdx, matchLen, targetLen int) string {
 		start -= end - len(content)
 		end = len(content)
 	}
-	if start < 0 {
-		start = 0
-	}
+	// start is always ≥ 0 here: same reasoning as claude/extractSnippet.
 
 	snippet := content[start:end]
 

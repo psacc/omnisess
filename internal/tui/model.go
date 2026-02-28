@@ -322,9 +322,7 @@ func (m *Model) clampViewport() {
 	if m.cursor >= m.offset+visible {
 		m.offset = m.cursor - visible + 1
 	}
-	if m.offset < 0 {
-		m.offset = 0
-	}
+	// offset is always ≥ 0 after clamp operations above.
 }
 
 // truncatePad truncates s to maxLen (with "..." suffix) and pads with spaces.

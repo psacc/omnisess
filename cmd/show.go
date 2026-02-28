@@ -26,21 +26,19 @@ func runShow(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	// parseQualifiedID validates the tool name, so source.ByName always returns ≥ 1 element.
+	return showSession(source.ByName(toolName)[0], args[0], sessionID, getFormat())
+}
 
-	sources := source.ByName(toolName)
-	if len(sources) == 0 {
-		return fmt.Errorf("unknown tool: %s", toolName)
-	}
-
-	session, err := sources[0].Get(sessionID)
+func showSession(src source.Source, qualifiedID, sessionID string, format output.Format) error {
+	session, err := src.Get(sessionID)
 	if err != nil {
 		return fmt.Errorf("failed to get session: %w", err)
 	}
 	if session == nil {
-		return fmt.Errorf("session not found: %s", args[0])
+		return fmt.Errorf("session not found: %s", qualifiedID)
 	}
-
-	output.RenderSession(session, getFormat())
+	output.RenderSession(session, format)
 	return nil
 }
 
