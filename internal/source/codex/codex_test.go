@@ -297,6 +297,38 @@ func TestList_ProjectFilter(t *testing.T) {
 	}
 }
 
+func TestList_ExcludeProjectsFilter(t *testing.T) {
+	home, _ := setupFakeHome(t)
+	t.Setenv("HOME", home)
+
+	s := &codexSource{}
+
+	// Without exclude: should return sessions (2 in fixture history)
+	all, err := s.List(source.ListOptions{})
+	if err != nil {
+		t.Fatalf("List() error: %v", err)
+	}
+	if len(all) == 0 {
+		t.Fatal("expected sessions without exclude filter")
+	}
+
+	// Exclude by project substring matching the fixture cwd.
+	// Only the session with a session file (cwd=/Users/testuser/prj/myproject)
+	// gets excluded; the other has no session file (cwd="") so it passes through.
+	sessions, err := s.List(source.ListOptions{ExcludeProjects: []string{"myproject"}})
+	if err != nil {
+		t.Fatalf("List() error: %v", err)
+	}
+	if len(sessions) >= len(all) {
+		t.Errorf("expected fewer sessions with exclude, got %d (all=%d)", len(sessions), len(all))
+	}
+	for _, sess := range sessions {
+		if strings.Contains(sess.Project, "myproject") {
+			t.Errorf("session %s should have been excluded (project=%s)", sess.ID, sess.Project)
+		}
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Get — error paths
 // ---------------------------------------------------------------------------

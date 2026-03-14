@@ -1188,6 +1188,31 @@ func TestList_ProjectFilter(t *testing.T) {
 	}
 }
 
+func TestList_ExcludeProjectsFilter(t *testing.T) {
+	home, _, _ := setupCursorHome(t)
+	t.Setenv("HOME", home)
+
+	s := &cursorSource{}
+
+	// Without exclude: should return sessions
+	all, err := s.List(source.ListOptions{})
+	if err != nil {
+		t.Fatalf("List() error: %v", err)
+	}
+	if len(all) == 0 {
+		t.Fatal("expected sessions without exclude filter")
+	}
+
+	// Exclude by project substring matching the fixture
+	sessions, err := s.List(source.ListOptions{ExcludeProjects: []string{"myproject"}})
+	if err != nil {
+		t.Fatalf("List() error: %v", err)
+	}
+	if len(sessions) != 0 {
+		t.Errorf("expected 0 sessions when excluding myproject, got %d", len(sessions))
+	}
+}
+
 func TestList_OrphanTranscript(t *testing.T) {
 	// No tracking DB — pure orphan transcript path
 	home := setupFakeHome(t)

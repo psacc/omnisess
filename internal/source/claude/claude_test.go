@@ -688,6 +688,39 @@ func TestList(t *testing.T) {
 		}
 	})
 
+	t.Run("ExcludeProjects filter", func(t *testing.T) {
+		setHome(t, home)
+
+		// Exclude "otherproject" — should drop the fff99999 session
+		allSessions, err := s.List(source.ListOptions{})
+		if err != nil {
+			t.Fatalf("List() error: %v", err)
+		}
+		excluded, err := s.List(source.ListOptions{ExcludeProjects: []string{"otherproject"}})
+		if err != nil {
+			t.Fatalf("List() with ExcludeProjects error: %v", err)
+		}
+		if len(excluded) >= len(allSessions) {
+			t.Errorf("expected fewer sessions with exclude, got %d (all=%d)", len(excluded), len(allSessions))
+		}
+		for _, sess := range excluded {
+			if strings.Contains(sess.Project, "otherproject") {
+				t.Errorf("session %s should have been excluded (project=%s)", sess.ID, sess.Project)
+			}
+		}
+	})
+
+	t.Run("ExcludeProjects excludes all when matching all", func(t *testing.T) {
+		setHome(t, home)
+		sessions, err := s.List(source.ListOptions{ExcludeProjects: []string{"Users"}})
+		if err != nil {
+			t.Fatalf("List() error: %v", err)
+		}
+		if len(sessions) != 0 {
+			t.Errorf("expected 0 sessions when excluding all, got %d", len(sessions))
+		}
+	})
+
 	t.Run("Active filter (all inactive = 0 results)", func(t *testing.T) {
 		// Sessions in testdata are not active (no live process)
 		sessions, err := s.List(source.ListOptions{Active: true})
@@ -796,6 +829,45 @@ func TestList_OrphanWithProjectFilter(t *testing.T) {
 	}
 	if len(sessions) != 0 {
 		t.Errorf("expected 0 sessions with non-matching project filter, got %d", len(sessions))
+	}
+}
+
+func TestList_OrphanWithExcludeProjectsFilter(t *testing.T) {
+	home := t.TempDir()
+	projDir := filepath.Join(home, ".claude", "projects", "-tmp-orphanproject")
+	if err := os.MkdirAll(projDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".claude", "history.jsonl"), []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sessData, err := os.ReadFile("testdata/session_simple.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(projDir, "orphanex-1234-5678-9abc-def012345678.jsonl"), sessData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	setHome(t, home)
+	s := &claudeSource{}
+
+	// Without exclude: orphan should appear
+	all, err := s.List(source.ListOptions{})
+	if err != nil {
+		t.Fatalf("List() error: %v", err)
+	}
+	if len(all) == 0 {
+		t.Fatal("expected orphan session without exclude filter")
+	}
+
+	// With exclude matching the orphan project
+	sessions, err := s.List(source.ListOptions{ExcludeProjects: []string{"orphanproject"}})
+	if err != nil {
+		t.Fatalf("List() error: %v", err)
+	}
+	if len(sessions) != 0 {
+		t.Errorf("expected 0 sessions with exclude filter, got %d", len(sessions))
 	}
 }
 
