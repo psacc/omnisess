@@ -172,6 +172,9 @@ func (s *codexSource) List(opts source.ListOptions) ([]model.Session, error) {
 		if opts.Project != "" && !strings.Contains(cwd, opts.Project) {
 			continue
 		}
+		if source.MatchesExclude(cwd, opts.ExcludeProjects) {
+			continue
+		}
 
 		preview := detect.Truncate(acc.text, 120)
 
