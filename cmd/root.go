@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/psacc/omnisess/internal/model"
@@ -18,11 +19,12 @@ import (
 )
 
 var (
-	flagJSON    bool
-	flagTool    string
-	flagSince   string
-	flagLimit   int
-	flagProject string
+	flagJSON            bool
+	flagTool            string
+	flagSince           string
+	flagLimit           int
+	flagProject         string
+	flagExcludeProjects []string
 )
 
 var rootCmd = &cobra.Command{
@@ -43,6 +45,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&flagSince, "since", "", "Only sessions updated within duration (e.g., 24h, 7d, 2w)")
 	rootCmd.PersistentFlags().IntVar(&flagLimit, "limit", 0, "Max results (0 = unlimited)")
 	rootCmd.PersistentFlags().StringVar(&flagProject, "project", "", "Filter by project path substring")
+	rootCmd.PersistentFlags().StringSliceVar(&flagExcludeProjects, "exclude-project", nil,
+		"Exclude sessions matching project path substring (repeatable, also OMNISESS_EXCLUDE_PROJECTS env var)")
 }
 
 func getFormat() output.Format {
@@ -72,6 +76,14 @@ func getListOptions() source.ListOptions {
 		}
 		opts.Since = d
 	}
+
+	// Merge --exclude-project flag with OMNISESS_EXCLUDE_PROJECTS env var.
+	excludes := append([]string(nil), flagExcludeProjects...)
+	if env := os.Getenv("OMNISESS_EXCLUDE_PROJECTS"); env != "" {
+		excludes = append(excludes, strings.Split(env, ",")...)
+	}
+	opts.ExcludeProjects = excludes
+
 	return opts
 }
 

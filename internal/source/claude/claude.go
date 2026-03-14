@@ -249,6 +249,9 @@ func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 		if opts.Project != "" && !strings.Contains(entry.Project, opts.Project) {
 			continue
 		}
+		if source.MatchesExclude(entry.Project, opts.ExcludeProjects) {
+			continue
+		}
 
 		preview := detect.Truncate(entry.Display, 120)
 
@@ -293,6 +296,9 @@ func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 			continue
 		}
 		if opts.Project != "" && !strings.Contains(orphan.Project, opts.Project) {
+			continue
+		}
+		if source.MatchesExclude(orphan.Project, opts.ExcludeProjects) {
 			continue
 		}
 

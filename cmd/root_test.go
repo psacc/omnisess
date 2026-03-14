@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"os"
+	"slices"
 	"testing"
 	"time"
 )
@@ -86,4 +88,54 @@ func TestParseDuration(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetListOptions_ExcludeProjects(t *testing.T) {
+	// Save and restore global flag state.
+	origExclude := flagExcludeProjects
+	origSince := flagSince
+	t.Cleanup(func() {
+		flagExcludeProjects = origExclude
+		flagSince = origSince
+	})
+	flagSince = ""
+
+	t.Run("env var only", func(t *testing.T) {
+		flagExcludeProjects = nil
+		t.Setenv("OMNISESS_EXCLUDE_PROJECTS", "CodexBar,TestApp")
+		opts := getListOptions()
+		want := []string{"CodexBar", "TestApp"}
+		if !slices.Equal(opts.ExcludeProjects, want) {
+			t.Errorf("got %v, want %v", opts.ExcludeProjects, want)
+		}
+	})
+
+	t.Run("flag only", func(t *testing.T) {
+		flagExcludeProjects = []string{"FooProject"}
+		os.Unsetenv("OMNISESS_EXCLUDE_PROJECTS")
+		opts := getListOptions()
+		want := []string{"FooProject"}
+		if !slices.Equal(opts.ExcludeProjects, want) {
+			t.Errorf("got %v, want %v", opts.ExcludeProjects, want)
+		}
+	})
+
+	t.Run("flag + env var merged", func(t *testing.T) {
+		flagExcludeProjects = []string{"FromFlag"}
+		t.Setenv("OMNISESS_EXCLUDE_PROJECTS", "FromEnv")
+		opts := getListOptions()
+		want := []string{"FromFlag", "FromEnv"}
+		if !slices.Equal(opts.ExcludeProjects, want) {
+			t.Errorf("got %v, want %v", opts.ExcludeProjects, want)
+		}
+	})
+
+	t.Run("neither set", func(t *testing.T) {
+		flagExcludeProjects = nil
+		os.Unsetenv("OMNISESS_EXCLUDE_PROJECTS")
+		opts := getListOptions()
+		if len(opts.ExcludeProjects) != 0 {
+			t.Errorf("expected empty, got %v", opts.ExcludeProjects)
+		}
+	})
 }

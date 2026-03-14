@@ -313,6 +313,9 @@ func matchesFilter(sess model.Session, opts source.ListOptions, cutoff time.Time
 	if opts.Project != "" && !strings.Contains(strings.ToLower(sess.Project), strings.ToLower(opts.Project)) {
 		return false
 	}
+	if source.MatchesExclude(sess.Project, opts.ExcludeProjects) {
+		return false
+	}
 	if opts.Active && !sess.Active {
 		return false
 	}

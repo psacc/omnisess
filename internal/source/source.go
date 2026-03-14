@@ -1,6 +1,7 @@
 package source
 
 import (
+	"strings"
 	"time"
 
 	"github.com/psacc/omnisess/internal/model"
@@ -8,10 +9,21 @@ import (
 
 // ListOptions controls filtering for List and Search operations.
 type ListOptions struct {
-	Since   time.Duration // only sessions updated within this duration
-	Limit   int           // max results (0 = unlimited)
-	Project string        // filter by project path substring
-	Active  bool          // only active sessions
+	Since           time.Duration // only sessions updated within this duration
+	Limit           int           // max results (0 = unlimited)
+	Project         string        // filter by project path substring (include)
+	ExcludeProjects []string      // exclude sessions matching any of these project substrings
+	Active          bool          // only active sessions
+}
+
+// MatchesExclude returns true if project matches any of the exclusion substrings.
+func MatchesExclude(project string, excludes []string) bool {
+	for _, ex := range excludes {
+		if ex != "" && strings.Contains(project, ex) {
+			return true
+		}
+	}
+	return false
 }
 
 // Source is the interface that each tool's session parser implements.
