@@ -8,9 +8,11 @@ description: |
   Trigger phrases: "recap", "what did I work on", "daily summary", "session summary",
   "summarize my sessions", "what sessions did I have today", "coding recap".
   This is the sessions-only public version — no Slack, Jira, or Granola integration.
+license: MIT
 allowed-tools: Bash
 argument-hint: "[today|yesterday|Nd]"
-version: 1.0.0
+metadata:
+  version: 1.0.0
 ---
 
 # omnisess recap

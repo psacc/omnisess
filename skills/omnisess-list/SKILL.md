@@ -6,9 +6,11 @@ description: |
   or get an overview of coding activity.
   Trigger phrases: "list sessions", "show sessions", "recent sessions", "sessions from cursor",
   "sessions today", "how many sessions", "show me my sessions".
+license: MIT
 allowed-tools: Bash
 argument-hint: "[--tool <name>] [--since <duration>] [--limit N] [--json]"
-version: 1.0.0
+metadata:
+  version: 1.0.0
 ---
 
 # omnisess list
