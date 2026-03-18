@@ -6,9 +6,11 @@ description: |
   look up what was discussed in past sessions, or find sessions mentioning specific code or concepts.
   Trigger phrases: "search sessions", "find sessions about", "look up in sessions",
   "what did I discuss about", "find conversation about", "search my history".
+license: MIT
 allowed-tools: Bash
 argument-hint: "<query>"
-version: 1.0.0
+metadata:
+  version: 1.0.0
 ---
 
 # omnisess search

@@ -8,9 +8,11 @@ description: |
   or which AI tools are in use right now.
   Trigger phrases: "active sessions", "running sessions", "what's open", "current sessions",
   "is claude running", "what sessions are active", "show active".
+license: MIT
 allowed-tools: Bash
 argument-hint: ""
-version: 1.0.0
+metadata:
+  version: 1.0.0
 ---
 
 # omnisess active

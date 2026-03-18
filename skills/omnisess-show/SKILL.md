@@ -7,9 +7,11 @@ description: |
   or view the messages in a session.
   Trigger phrases: "show session", "open session", "inspect session", "read session",
   "show me claude:5c3f2742", "view session details", "what happened in session".
+license: MIT
 allowed-tools: Bash
 argument-hint: "<tool>:<session-id>"
-version: 1.0.0
+metadata:
+  version: 1.0.0
 ---
 
 # omnisess show
