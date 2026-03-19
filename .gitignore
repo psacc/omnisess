@@ -6,4 +6,12 @@ coverage.out
 coverage.html
 *.test
 .a5c/
+.agent/
+.agents/
 .claude/settings.local.json
+.claude/worktrees/
+.tmp_*
+.worktrees/
+cov_*
+skills-lock.json
+skills/
