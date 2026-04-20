@@ -28,6 +28,7 @@ Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.gemini/)
 - **cmd/search.go** — Calls `Source.Search()` in parallel via errgroup, merges results, renders with snippets.
 - **cmd/show.go** — Parses `tool:id` argument, calls `Source.Get()`, renders full conversation.
 - **cmd/active.go** — Calls `Source.List()` with `Active: true` filter.
+- **cmd/ps.go** — `omnisess ps`: merged ancestor tree of live Claude sessions (macOS only). Renders text tree or JSON via `--json`.
 - **internal/model/session.go** — Pure data types. No dependencies.
 - **internal/source/source.go** — `Source` interface: `Name()`, `List()`, `Get()`, `Search()`.
 - **internal/source/registry.go** — Global source registry. Sources self-register via `init()`.
@@ -36,6 +37,7 @@ Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.gemini/)
 - **internal/source/codex/** — Stub. Returns empty results.
 - **internal/source/gemini/** — Stub. Returns empty results.
 - **internal/detect/process.go** — `IsProcessRunning(name)` and `IsFileRecentlyModified(path, threshold)`.
+- **internal/procsnap/** — Live-process correlation for Claude sessions (macOS only). `Enumerate()` scans `~/.claude/sessions/<PID>.json`, filters alive PIDs, walks ancestors via `ps`. Returns `ErrUnsupported` off darwin.
 - **internal/output/render.go** — `RenderTable()` and `RenderJSON()` dispatched by format flag.
 - **~~internal/search/search.go~~** — Planned, not yet implemented. Search currently lives in `cmd/search.go`.
 

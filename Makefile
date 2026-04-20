@@ -6,8 +6,20 @@ all: build vet lint test
 build: ## Build the omnisess binary
 	go build -o omnisess .
 
-test: ## Run unit tests only (skips integration tests that read real local data)
-	go test -race -count=1 -short ./...
+# Per-test time budget. Any test slower than this fails the build.
+# Override with: make test TEST_SLOW_THRESHOLD=5
+TEST_SLOW_THRESHOLD ?= 1.0
+
+test: ## Run unit tests; fails if any test exceeds TEST_SLOW_THRESHOLD seconds
+	@go test -race -count=1 -short -v ./... 2>&1 | tee .test-output.log
+	@awk -v thr=$(TEST_SLOW_THRESHOLD) ' \
+	  /^--- (PASS|FAIL):/ { \
+	    t=$$3; gsub(/[()s]/,"",t); \
+	    if (t+0 > thr) { printf "SLOW (%.2fs > %.1fs): %s\n", t, thr, $$2; slow++ } \
+	  } \
+	  END { if (slow) { printf "\n%d test(s) exceeded %.1fs threshold\n", slow, thr; exit 1 } }' \
+	  .test-output.log
+	@rm -f .test-output.log
 
 # test-integ runs all tests including integration tests that read real local
 # data from ~/.claude, ~/.cursor, ~/.codex, etc. Only run on a developer machine

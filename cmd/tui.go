@@ -3,6 +3,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/psacc/omnisess/internal/model"
+	"github.com/psacc/omnisess/internal/procsnap"
 	"github.com/psacc/omnisess/internal/resume"
 	"github.com/psacc/omnisess/internal/tui"
 
@@ -33,7 +35,8 @@ var (
 	runProgram                                                        = func(m tea.Model, opts ...tea.ProgramOption) (tea.Model, error) {
 		return tea.NewProgram(m, opts...).Run()
 	}
-	execInAoE = resume.ExecInAoE
+	execInAoE         = resume.ExecInAoE
+	enumerateProcsnap = procsnap.Enumerate
 )
 
 var tuiCmd = &cobra.Command{
@@ -101,9 +104,29 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Enrich Claude Active flags from the live process snapshot. On
+	// unsupported platforms or snapshot errors we keep the existing
+	// (mtime-based) flags. snapOK controls whether we also attach the
+	// snapshot to the TUI model for the lineage overlay (Task C3) and
+	// the refresh tick (Task C4).
+	var (
+		snap   procsnap.Snapshot
+		snapOK bool
+	)
+	if s, err := enumerateProcsnap(); err == nil {
+		snap = s
+		snapOK = true
+		all = tui.ApplySnapshot(all, snap)
+	} else if !errors.Is(err, procsnap.ErrUnsupported) {
+		fmt.Fprintf(os.Stderr, "warning: procsnap: %v\n", err)
+	}
 	// Run Bubble Tea program.
 	toolModes := buildToolModes()
 	m := tui.New(all, toolModes)
+	if snapOK {
+		m.SetSnapshot(snap)
+		m.SetEnumerator(procsnap.Enumerate)
+	}
 
 	finalModel, err := runProgram(m, tea.WithAltScreen())
 	if err != nil {
