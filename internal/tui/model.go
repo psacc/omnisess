@@ -10,6 +10,7 @@ import (
 
 	"github.com/psacc/omnisess/internal/model"
 	"github.com/psacc/omnisess/internal/output"
+	"github.com/psacc/omnisess/internal/procsnap"
 )
 
 // Column widths (fixed layout).
@@ -76,6 +77,22 @@ func (m Model) SelectedMode() string {
 // Quitting returns true if the user chose to exit.
 func (m Model) Quitting() bool {
 	return m.quitting
+}
+
+// ApplySnapshot overrides the Active flag for every claude session based on
+// the snapshot. Non-claude sessions are untouched. Caller must only invoke
+// this when Enumerate returned nil error (never on ErrUnsupported).
+func ApplySnapshot(sessions []model.Session, snap procsnap.Snapshot) []model.Session {
+	live := make(map[string]bool, len(snap.Sessions))
+	for _, s := range snap.Sessions {
+		live[s.SessionID] = true
+	}
+	for i := range sessions {
+		if sessions[i].Tool == model.ToolClaude {
+			sessions[i].Active = live[sessions[i].ID]
+		}
+	}
+	return sessions
 }
 
 // Init implements tea.Model. Data is pre-loaded, so no initial command.

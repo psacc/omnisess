@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/psacc/omnisess/internal/model"
+	"github.com/psacc/omnisess/internal/procsnap"
 )
 
 // testSessions returns a slice of sessions for testing.
@@ -668,5 +669,43 @@ func TestClampViewport_ScrollUp(t *testing.T) {
 	m.clampViewport()
 	if m.offset != 0 {
 		t.Errorf("clampViewport scroll-up: offset = %d, want 0", m.offset)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ApplySnapshot
+// ---------------------------------------------------------------------------
+
+func TestApplySnapshot_OverridesClaudeActive(t *testing.T) {
+	sessions := []model.Session{
+		{ID: "live-claude", Tool: model.ToolClaude, Active: false, UpdatedAt: time.Now()},
+		{ID: "dead-claude", Tool: model.ToolClaude, Active: true, UpdatedAt: time.Now()},
+		{ID: "any-cursor", Tool: model.ToolCursor, Active: true, UpdatedAt: time.Now()},
+	}
+	snap := procsnap.Snapshot{
+		Sessions: []procsnap.Session{{SessionID: "live-claude"}},
+	}
+	got := ApplySnapshot(sessions, snap)
+	if !got[0].Active {
+		t.Errorf("live claude must become Active=true")
+	}
+	if got[1].Active {
+		t.Errorf("claude not in snapshot must become Active=false")
+	}
+	if !got[2].Active {
+		t.Errorf("cursor Active must be untouched (was true)")
+	}
+}
+
+func TestApplySnapshot_UnsupportedIsNoop(t *testing.T) {
+	sessions := []model.Session{
+		{ID: "x", Tool: model.ToolClaude, Active: true, UpdatedAt: time.Now()},
+	}
+	got := ApplySnapshot(sessions, procsnap.Snapshot{})
+	// Empty snapshot overrides: claude session becomes inactive.
+	// This matches "we believe the snapshot when we have it"; callers that
+	// receive ErrUnsupported must not call ApplySnapshot.
+	if got[0].Active {
+		t.Error("empty snapshot must mark claude sessions inactive")
 	}
 }
