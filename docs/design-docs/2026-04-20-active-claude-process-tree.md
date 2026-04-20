@@ -1,7 +1,7 @@
 # Active Claude Process Tree
 
 **Date**: 2026-04-20
-**Status**: Design — not yet implemented
+**Status**: Implemented
 **Related**: [`active-detection-investigation.md`](../reports/active-detection-investigation.md), [`../exec-plans/active/010-session-names.md`](../exec-plans/active/010-session-names.md), [`../exec-plans/active/011-tui-enhancements.md`](../exec-plans/active/011-tui-enhancements.md)
 
 ## Problem
