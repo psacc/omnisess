@@ -160,6 +160,9 @@ func TestSessionsDirFnDefault_HomeUnset(t *testing.T) {
 }
 
 func TestPSRunnerFnDefault(t *testing.T) {
+	// Assumes a normal macOS environment (ps in PATH, PID 1 visible).
+	// Darwin CI runs on real macOS so these invariants hold.
+	//
 	// Exercise the real psRunnerFn so the function-literal body is covered.
 	// `ps -Ao pid=,ppid=,comm=,args=` must succeed on any macOS test host
 	// and always includes PID 1 (launchd).

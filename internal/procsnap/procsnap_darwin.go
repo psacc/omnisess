@@ -47,6 +47,8 @@ func Enumerate() (Snapshot, error) {
 		fmt.Fprintf(os.Stderr, "procsnap: ps failed: %v\n", psErr)
 		procs = map[int]procInfo{}
 	} else {
+		// parsePS returns a partial map on error; best-effort is the right move
+		// here — a truncated proc table beats an empty one.
 		procs, _ = parsePS(raw)
 	}
 
