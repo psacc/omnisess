@@ -95,8 +95,12 @@ func renderTree(out io.Writer, snap procsnap.Snapshot) {
 		parent.children = append(parent.children, leaf)
 	}
 
+	sort.SliceStable(root.children, func(i, j int) bool {
+		return root.children[i].label < root.children[j].label
+	})
 	for _, top := range root.children {
-		printNode(out, top, "", true)
+		fmt.Fprintln(out, top.label)
+		printChildren(out, top.children, "")
 	}
 }
 
@@ -143,36 +147,25 @@ func formatAge(d time.Duration) string {
 	return fmt.Sprintf("%dh", int(d.Hours()))
 }
 
-func printNode(out io.Writer, n *treeNode, prefix string, isLast bool) {
-	var connector string
-	var nextPrefix string
-	if prefix == "" && isLast {
-		// Top-level node: no connector.
-		fmt.Fprintln(out, n.label)
-		nextPrefix = ""
-	} else {
-		if isLast {
+// printChildren renders the given list of children under a parent at `prefix`
+// (empty prefix means "direct children of a top-level root"). Every child
+// receives a connector — `├─` for middle children, `└─` for the last — and a
+// correspondingly-indented prefix is passed down. This separation from the
+// top-level print avoids the previous cascade where a last-child at prefix=""
+// was treated as if it were another top-level root.
+func printChildren(out io.Writer, children []*treeNode, prefix string) {
+	sort.SliceStable(children, func(i, j int) bool {
+		return children[i].label < children[j].label
+	})
+	for i, c := range children {
+		last := i == len(children)-1
+		connector := "├─ "
+		nextPrefix := prefix + "│  "
+		if last {
 			connector = "└─ "
 			nextPrefix = prefix + "   "
-		} else {
-			connector = "├─ "
-			nextPrefix = prefix + "│  "
 		}
-		fmt.Fprintf(out, "%s%s%s\n", prefix, connector, n.label)
-	}
-
-	// Stable ordering: named claude leaves first, then by label.
-	sort.SliceStable(n.children, func(i, j int) bool {
-		return n.children[i].label < n.children[j].label
-	})
-	for i, c := range n.children {
-		last := i == len(n.children)-1
-		var childPrefix string
-		if prefix == "" && connector == "" {
-			childPrefix = ""
-		} else {
-			childPrefix = nextPrefix
-		}
-		printNode(out, c, childPrefix, last)
+		fmt.Fprintf(out, "%s%s%s\n", prefix, connector, c.label)
+		printChildren(out, c.children, nextPrefix)
 	}
 }

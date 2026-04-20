@@ -171,6 +171,47 @@ func TestRenderTree_Merges_SharedAncestors(t *testing.T) {
 	}
 }
 
+// TestRenderTree_MultipleTopLevelRoots covers the sort of root.children (the
+// comparator is only invoked when there are at least two top-level roots).
+// Two sessions with disjoint ancestor chains produce two distinct roots.
+func TestRenderTree_MultipleTopLevelRoots(t *testing.T) {
+	snap := procsnap.Snapshot{
+		Built: time.Now(),
+		Sessions: []procsnap.Session{
+			// Root 1: top ancestor "zzz"
+			{
+				PID: 200, SessionID: "aaaaaaaa", Name: "sess-a",
+				CWD: "/x/a", StartedAt: time.Now().Add(-1 * time.Minute), Entrypoint: "cli",
+				Ancestors: []procsnap.Ancestor{
+					{PID: 2, Command: "zzz"},
+				},
+			},
+			// Root 2: top ancestor "aaa". Alphabetically before zzz, so sort
+			// must reorder the top-level roots.
+			{
+				PID: 201, SessionID: "bbbbbbbb", Name: "sess-b",
+				CWD: "/x/b", StartedAt: time.Now().Add(-1 * time.Minute), Entrypoint: "cli",
+				Ancestors: []procsnap.Ancestor{
+					{PID: 1, Command: "aaa"},
+				},
+			},
+		},
+	}
+	var buf bytes.Buffer
+	renderTree(&buf, snap)
+	out := buf.String()
+
+	// Two independent roots, "aaa" first after sorting.
+	aaaIdx := strings.Index(out, "aaa (1)")
+	zzzIdx := strings.Index(out, "zzz (2)")
+	if aaaIdx < 0 || zzzIdx < 0 {
+		t.Fatalf("expected both roots in output:\n%s", out)
+	}
+	if aaaIdx >= zzzIdx {
+		t.Errorf("expected 'aaa (1)' sorted before 'zzz (2)':\n%s", out)
+	}
+}
+
 func TestRenderTree_Empty(t *testing.T) {
 	var buf bytes.Buffer
 	renderTree(&buf, procsnap.Snapshot{})
@@ -300,6 +341,59 @@ func TestRunPS_JSON(t *testing.T) {
 	}
 	if len(out.Sessions) != 1 || out.Sessions[0].SessionID != "abc" {
 		t.Errorf("roundtrip failed: %+v", out)
+	}
+}
+
+// TestRenderTree_LastChildOfRootKeepsConnector locks down the invariant that
+// the last child of a top-level root must render with "└─" and be indented
+// under the root, NOT stranded as if it were another top-level root.
+//
+// Bug this protects against: printNode had a special case "prefix=="" &&
+// isLast" that dropped the connector AND passed an empty prefix to children,
+// which cascaded — every last-child of every root-level node would re-enter
+// the "I am a top-level" branch and get printed without indentation.
+func TestRenderTree_LastChildOfRootKeepsConnector(t *testing.T) {
+	snap := procsnap.Snapshot{
+		Built: time.Now(),
+		Sessions: []procsnap.Session{
+			// One claude under iTerm2 → launchd.
+			{
+				PID: 100, SessionID: "aaaaaaaa", Name: "sess-a",
+				CWD: "/x/a", StartedAt: time.Now().Add(-1 * time.Minute), Entrypoint: "cli",
+				Ancestors: []procsnap.Ancestor{
+					{PID: 50, Command: "iTerm2"},
+					{PID: 1, Command: "launchd"},
+				},
+			},
+			// One claude under tmux → launchd. tmux sorts AFTER iTerm2,
+			// so it is the LAST child of launchd — the bug trigger.
+			{
+				PID: 101, SessionID: "bbbbbbbb", Name: "sess-b",
+				CWD: "/x/b", StartedAt: time.Now().Add(-1 * time.Minute), Entrypoint: "cli",
+				Ancestors: []procsnap.Ancestor{
+					{PID: 60, Command: "tmux"},
+					{PID: 1, Command: "launchd"},
+				},
+			},
+		},
+	}
+	var buf bytes.Buffer
+	renderTree(&buf, snap)
+	out := buf.String()
+
+	// Middle child of launchd: ├─ iTerm2 (50)
+	if !strings.Contains(out, "├─ iTerm2 (50)") {
+		t.Errorf("expected '├─ iTerm2 (50)' (middle-child of launchd):\n%s", out)
+	}
+	// Last child of launchd: MUST be └─ tmux (60), not a bare "tmux (60)".
+	if !strings.Contains(out, "└─ tmux (60)") {
+		t.Errorf("expected '└─ tmux (60)' (last-child of launchd) with connector:\n%s", out)
+	}
+	// And the leaf claude under tmux must be indented under tmux, not stranded.
+	// With correct rendering, the sess-b line is prefixed with "   └─ " (3 spaces
+	// under tmux's blank col, then connector).
+	if !strings.Contains(out, "   └─ claude  sess-b") {
+		t.Errorf("expected sess-b to be indented under tmux with '   └─ ':\n%s", out)
 	}
 }
 
