@@ -279,6 +279,30 @@ func TestLeafLabel(t *testing.T) {
 	}
 }
 
+func TestRunPS_JSON(t *testing.T) {
+	var buf bytes.Buffer
+	enum := func() (procsnap.Snapshot, error) {
+		return procsnap.Snapshot{
+			Built: time.Now(),
+			Sessions: []procsnap.Session{{
+				PID:       1234,
+				SessionID: "abc",
+				CWD:       "/tmp/x",
+			}},
+		}, nil
+	}
+	if err := runPSWith(&buf, enum, true); err != nil {
+		t.Fatalf("runPSWith: %v", err)
+	}
+	var out procsnap.Snapshot
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("output not JSON: %v\n%s", err, buf.String())
+	}
+	if len(out.Sessions) != 1 || out.Sessions[0].SessionID != "abc" {
+		t.Errorf("roundtrip failed: %+v", out)
+	}
+}
+
 // TestRenderTree_DeepBranches exercises the middle-child (├─) and last-child
 // (└─) connector branches of printNode by arranging siblings beneath a shared
 // non-top ancestor (so prefix != "" on recursion).
