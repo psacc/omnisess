@@ -12,12 +12,6 @@ import (
 	"github.com/psacc/omnisess/internal/procsnap"
 )
 
-// TODO(B2): flagPSTree is declared now to reserve the name; it becomes
-// meaningful when the tree renderer lands in Task B2. Unused until then.
-//
-//nolint:unused // reserved flag, see TODO.
-var flagPSTree bool
-
 var psCmd = &cobra.Command{
 	Use:   "ps",
 	Short: "Show active Claude sessions as a process tree",
