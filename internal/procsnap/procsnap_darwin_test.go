@@ -5,6 +5,7 @@ package procsnap
 import (
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -114,5 +115,37 @@ func TestScanSessionDir_UnreadableFile(t *testing.T) {
 	}
 	if len(entries) != 0 {
 		t.Errorf("expected 0 entries (locked file skipped), got %d", len(entries))
+	}
+}
+
+func TestKillFnDefault(t *testing.T) {
+	// Exercise the real killFn with os.Getpid() so the function-literal body
+	// is covered. This guarantees 100% statement coverage.
+	if err := killFn(os.Getpid()); err != nil {
+		t.Errorf("killFn(self) = %v, want nil", err)
+	}
+}
+
+func TestFilterAlive(t *testing.T) {
+	orig := killFn
+	killFn = func(pid int) error {
+		if pid == 52333 {
+			return nil // alive
+		}
+		return syscall.ESRCH // dead
+	}
+	t.Cleanup(func() { killFn = orig })
+
+	in := []sessionFile{
+		{PID: 52333, SessionID: "a"},
+		{PID: 9999, SessionID: "b"},
+		{PID: 42, SessionID: "c"},
+	}
+	got := filterAlive(in)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 alive, got %d", len(got))
+	}
+	if got[0].PID != 52333 {
+		t.Errorf("wrong alive PID: %d", got[0].PID)
 	}
 }

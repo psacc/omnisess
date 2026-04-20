@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 )
 
@@ -75,4 +76,19 @@ func scanSessionDir(dir string) ([]sessionFile, error) {
 		})
 	}
 	return out, nil
+}
+
+// killFn is injectable for tests. syscall.Kill(pid, 0) is the portable
+// liveness probe: returns nil if the process exists and we can signal it.
+var killFn = func(pid int) error { return syscall.Kill(pid, 0) }
+
+// filterAlive returns only entries whose PID is currently a live process.
+func filterAlive(in []sessionFile) []sessionFile {
+	out := make([]sessionFile, 0, len(in))
+	for _, e := range in {
+		if err := killFn(e.PID); err == nil {
+			out = append(out, e)
+		}
+	}
+	return out
 }
