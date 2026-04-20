@@ -36,16 +36,18 @@ var (
 
 // Model is the Bubble Tea model for the session picker TUI.
 type Model struct {
-	sessions     []model.Session
-	cursor       int
-	offset       int // scroll offset for viewport
-	width        int
-	height       int
-	selected     *model.Session
-	selectedMode string // resume mode chosen by user (e.g. "resume", "tmux", "aoe", "fork")
-	quitting     bool
-	message      string // inline error/info message
-	toolModes    map[model.Tool][]string
+	sessions       []model.Session
+	cursor         int
+	offset         int // scroll offset for viewport
+	width          int
+	height         int
+	selected       *model.Session
+	selectedMode   string // resume mode chosen by user (e.g. "resume", "tmux", "aoe", "fork")
+	quitting       bool
+	message        string // inline error/info message
+	toolModes      map[model.Tool][]string
+	snapshot       procsnap.Snapshot
+	showingLineage bool
 }
 
 // New creates a Model pre-loaded with sessions.
@@ -61,6 +63,11 @@ func New(sessions []model.Session, toolModes map[model.Tool][]string) Model {
 		height:    24,
 		toolModes: toolModes,
 	}
+}
+
+// SetSnapshot attaches a snapshot used by the lineage overlay and active flag.
+func (m *Model) SetSnapshot(snap procsnap.Snapshot) {
+	m.snapshot = snap
 }
 
 // Selected returns the session the user picked, or nil if they quit.
@@ -120,7 +127,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.message = ""
 
 		switch msg.String() {
-		case "q", "esc", "ctrl+c":
+		case "l":
+			m.showingLineage = true
+			m.message = ""
+			return m, nil
+		case "esc":
+			if m.showingLineage {
+				m.showingLineage = false
+				return m, nil
+			}
+			m.quitting = true
+			return m, tea.Quit
+		case "q", "ctrl+c":
 			m.quitting = true
 			return m, tea.Quit
 
@@ -251,6 +269,10 @@ func (m Model) View() string {
 	b.WriteString(styleFooter.Render(footer))
 	b.WriteByte('\n')
 
+	if m.showingLineage && len(m.sessions) > 0 {
+		b.WriteString(m.renderLineage())
+	}
+
 	return b.String()
 }
 
@@ -285,6 +307,33 @@ func (m Model) footerHelp() string {
 
 	parts = append(parts, "q: quit")
 	return strings.Join(parts, "  ")
+}
+
+// renderLineage renders the lineage overlay for the currently selected session.
+func (m Model) renderLineage() string {
+	sess := m.sessions[m.cursor]
+	if sess.Tool != model.ToolClaude {
+		return styleFooter.Render("Lineage unavailable: not a Claude session.\n")
+	}
+	var live *procsnap.Session
+	for i := range m.snapshot.Sessions {
+		if m.snapshot.Sessions[i].SessionID == sess.ID {
+			live = &m.snapshot.Sessions[i]
+			break
+		}
+	}
+	if live == nil {
+		return styleFooter.Render("Lineage: session has no live process.\n")
+	}
+	var sb strings.Builder
+	sb.WriteString(styleHeader.Render("Lineage"))
+	sb.WriteByte('\n')
+	fmt.Fprintf(&sb, "  claude (%d)\n", live.PID)
+	for _, a := range live.Ancestors {
+		fmt.Fprintf(&sb, "  └─ %s (%d)\n", a.Command, a.PID)
+	}
+	sb.WriteString(styleFooter.Render("(esc to dismiss)\n"))
+	return sb.String()
 }
 
 // renderRow formats a single session row.

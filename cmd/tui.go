@@ -35,7 +35,7 @@ var (
 	runProgram                                                        = func(m tea.Model, opts ...tea.ProgramOption) (tea.Model, error) {
 		return tea.NewProgram(m, opts...).Run()
 	}
-	execInAoE        = resume.ExecInAoE
+	execInAoE         = resume.ExecInAoE
 	enumerateProcsnap = procsnap.Enumerate
 )
 
@@ -120,12 +120,12 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	} else if !errors.Is(err, procsnap.ErrUnsupported) {
 		fmt.Fprintf(os.Stderr, "warning: procsnap: %v\n", err)
 	}
-	_ = snap
-	_ = snapOK
-
 	// Run Bubble Tea program.
 	toolModes := buildToolModes()
 	m := tui.New(all, toolModes)
+	if snapOK {
+		m.SetSnapshot(snap)
+	}
 
 	finalModel, err := runProgram(m, tea.WithAltScreen())
 	if err != nil {

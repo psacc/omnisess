@@ -710,6 +710,56 @@ func TestApplySnapshot_EmptySnapshotZeroesClaude(t *testing.T) {
 	}
 }
 
+func TestModel_LineageOverlay_ToggleAndDismiss(t *testing.T) {
+	sessions := []model.Session{
+		{ID: "aaa", Tool: model.ToolClaude, UpdatedAt: time.Now(), Active: true},
+	}
+	snap := procsnap.Snapshot{
+		Sessions: []procsnap.Session{{
+			SessionID: "aaa",
+			PID:       1234,
+			Ancestors: []procsnap.Ancestor{
+				{PID: 100, Command: "zsh"},
+				{PID: 1, Command: "launchd"},
+			},
+		}},
+	}
+	m := New(sessions, nil)
+	m.SetSnapshot(snap)
+
+	// Press 'l' — overlay becomes visible.
+	m2, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	view := m2.View()
+	if !strings.Contains(view, "Lineage") || !strings.Contains(view, "zsh") || !strings.Contains(view, "launchd") {
+		t.Errorf("expected lineage overlay with ancestors, got:\n%s", view)
+	}
+
+	// Press Esc — overlay dismissed.
+	m3, _ := m2.(Model).Update(tea.KeyMsg{Type: tea.KeyEsc})
+	view2 := m3.View()
+	if strings.Contains(view2, "Lineage") {
+		t.Errorf("overlay must dismiss on Esc, still shown:\n%s", view2)
+	}
+}
+
+func TestRenderLineage_NonClaude(t *testing.T) {
+	m := New([]model.Session{{ID: "x", Tool: model.ToolCursor, UpdatedAt: time.Now()}}, nil)
+	m.showingLineage = true
+	view := m.View()
+	if !strings.Contains(view, "not a Claude session") {
+		t.Errorf("expected non-claude notice, got:\n%s", view)
+	}
+}
+
+func TestRenderLineage_NoLiveProcess(t *testing.T) {
+	m := New([]model.Session{{ID: "x", Tool: model.ToolClaude, UpdatedAt: time.Now()}}, nil)
+	m.showingLineage = true
+	view := m.View()
+	if !strings.Contains(view, "no live process") {
+		t.Errorf("expected no-live-process notice, got:\n%s", view)
+	}
+}
+
 func TestApplySnapshot_PopulatesRenameTitle(t *testing.T) {
 	sessions := []model.Session{
 		{ID: "aaa", Tool: model.ToolClaude, Title: "", UpdatedAt: time.Now()},
