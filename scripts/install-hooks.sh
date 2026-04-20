@@ -2,15 +2,17 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-HOOK_SRC="$REPO_ROOT/scripts/pre-commit"
 
-# Resolve the actual .git directory (supports worktrees)
+# Resolve the actual .git directory (supports worktrees). For a worktree this
+# is something like /path/to/main/.git/worktrees/<name> — hooks installed here
+# apply to the worktree only, which is the expected behavior.
 GIT_DIR="$(git -C "$REPO_ROOT" rev-parse --git-dir)"
+HOOK_DIR="$GIT_DIR/hooks"
+mkdir -p "$HOOK_DIR"
 
-# For worktrees, GIT_DIR is something like /path/to/main/.git/worktrees/<name>
-# Hooks should go in the worktree's own git dir
-HOOK_DST="$GIT_DIR/hooks/pre-commit"
-
-mkdir -p "$(dirname "$HOOK_DST")"
-ln -sf "$HOOK_SRC" "$HOOK_DST"
-echo "Installed pre-commit hook -> $HOOK_DST"
+for hook in pre-commit pre-push; do
+  src="$REPO_ROOT/scripts/$hook"
+  dst="$HOOK_DIR/$hook"
+  ln -sf "$src" "$dst"
+  echo "Installed $hook hook -> $dst"
+done
