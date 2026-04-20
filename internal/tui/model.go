@@ -80,16 +80,22 @@ func (m Model) Quitting() bool {
 }
 
 // ApplySnapshot overrides the Active flag for every claude session based on
-// the snapshot. Non-claude sessions are untouched. Caller must only invoke
-// this when Enumerate returned nil error (never on ErrUnsupported).
+// the snapshot, and cascades the live /rename Name into Title when non-empty.
+// Non-claude sessions are untouched. Caller must only invoke this when
+// Enumerate returned nil error (never on ErrUnsupported).
 func ApplySnapshot(sessions []model.Session, snap procsnap.Snapshot) []model.Session {
-	live := make(map[string]bool, len(snap.Sessions))
+	bySessionID := make(map[string]procsnap.Session, len(snap.Sessions))
 	for _, s := range snap.Sessions {
-		live[s.SessionID] = true
+		bySessionID[s.SessionID] = s
 	}
 	for i := range sessions {
-		if sessions[i].Tool == model.ToolClaude {
-			sessions[i].Active = live[sessions[i].ID]
+		if sessions[i].Tool != model.ToolClaude {
+			continue
+		}
+		live, ok := bySessionID[sessions[i].ID]
+		sessions[i].Active = ok
+		if ok && live.Name != "" {
+			sessions[i].Title = live.Name
 		}
 	}
 	return sessions

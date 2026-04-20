@@ -709,3 +709,23 @@ func TestApplySnapshot_EmptySnapshotZeroesClaude(t *testing.T) {
 		t.Error("empty snapshot must mark claude sessions inactive")
 	}
 }
+
+func TestApplySnapshot_PopulatesRenameTitle(t *testing.T) {
+	sessions := []model.Session{
+		{ID: "aaa", Tool: model.ToolClaude, Title: "", UpdatedAt: time.Now()},
+		{ID: "bbb", Tool: model.ToolClaude, Title: "existing preview", UpdatedAt: time.Now()},
+	}
+	snap := procsnap.Snapshot{
+		Sessions: []procsnap.Session{
+			{SessionID: "aaa", Name: "pair with alice"},
+			{SessionID: "bbb", Name: ""}, // no /rename
+		},
+	}
+	got := ApplySnapshot(sessions, snap)
+	if got[0].Title != "pair with alice" {
+		t.Errorf("Title = %q, want %q", got[0].Title, "pair with alice")
+	}
+	if got[1].Title != "existing preview" {
+		t.Errorf("empty rename must not overwrite existing Title, got %q", got[1].Title)
+	}
+}
