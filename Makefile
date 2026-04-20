@@ -99,7 +99,7 @@ bump-skills: ## Rewrite metadata.version in every SKILL.md (usage: make bump-ski
 	done
 	@echo "Bumped SKILL.md files to $(VERSION)"
 
-release: ## Bump skills, commit, tag, push, and create GitHub release (usage: make release VERSION=v1.2.3)
+release: ## Tag current HEAD and create GitHub release (usage: make release VERSION=v1.2.3)
 	@if [ -z "$(VERSION)" ]; then \
 		echo "error: VERSION is required. Usage: make release VERSION=v0.4.1"; exit 1; \
 	fi
@@ -112,16 +112,17 @@ release: ## Bump skills, commit, tag, push, and create GitHub release (usage: ma
 	if [ "$$branch" != "main" ]; then \
 		echo "error: release must run from main (currently on $$branch)"; exit 1; \
 	fi
-	@if ! git diff --quiet || ! git diff --cached --quiet; then \
-		echo "error: working tree has uncommitted changes; commit or stash first"; exit 1; \
-	fi
-	$(MAKE) bump-skills VERSION=$(VERSION)
-	git add SKILL.md skills/*/SKILL.md
-	@if git diff --cached --quiet; then \
-		echo "No SKILL.md changes to commit."; \
-	else \
-		git commit -m "chore: bump SKILL.md versions to $(VERSION)"; \
-		git push origin main; \
+	@# Guard: SKILL.md must already be bumped to VERSION via a preceding PR.
+	@# Branch protection requires every change on main to go through a PR + CI,
+	@# so the SKILL.md bump cannot happen at release time. Run `make bump-skills
+	@# VERSION=$(VERSION)` on a release-prep branch, PR it, and merge before releasing.
+	@stripped=$$(echo "$(VERSION)" | sed 's/^v//'); \
+	actual=$$(awk '/^  version: / {print $$2; exit}' SKILL.md); \
+	if [ "$$actual" != "$$stripped" ]; then \
+		echo "error: SKILL.md version is $$actual, expected $$stripped."; \
+		echo "  Run 'make bump-skills VERSION=$(VERSION)' on a release-prep branch,"; \
+		echo "  open a PR, and merge it before releasing."; \
+		exit 1; \
 	fi
 	git tag -a "$(VERSION)" -m "Release $(VERSION)"
 	git push origin "$(VERSION)"
