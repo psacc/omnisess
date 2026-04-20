@@ -1,4 +1,4 @@
-.PHONY: all build test test-integ cover cover-check cover-html lint vet fmt check clean setup pr install smoke tag release repo-setup help
+.PHONY: all build test test-integ cover cover-check cover-html lint vet fmt check clean setup pr install smoke tag release bump-skills repo-setup help
 
 # Default: build + vet + lint + test
 all: build vet lint test
@@ -88,12 +88,43 @@ tag: ## Create and push a git tag (usage: make tag VERSION=v1.2.3)
 	git tag -a "$(VERSION)" -m "Release $(VERSION)"
 	git push origin "$(VERSION)"
 
-release: tag ## Create a GitHub release (usage: make release VERSION=v1.2.3)
+bump-skills: ## Rewrite metadata.version in every SKILL.md (usage: make bump-skills VERSION=v1.2.3)
+	@if [ -z "$(VERSION)" ]; then \
+		echo "error: VERSION is required. Usage: make bump-skills VERSION=v0.4.1"; exit 1; \
+	fi
+	@stripped=$$(echo "$(VERSION)" | sed 's/^v//'); \
+	for f in SKILL.md skills/*/SKILL.md; do \
+		[ -f "$$f" ] || continue; \
+		sed -i.bak -E "s/^(  version: ).*/\1$${stripped}/" "$$f" && rm -f "$$f.bak"; \
+	done
+	@echo "Bumped SKILL.md files to $(VERSION)"
+
+release: ## Bump skills, commit, tag, push, and create GitHub release (usage: make release VERSION=v1.2.3)
+	@if [ -z "$(VERSION)" ]; then \
+		echo "error: VERSION is required. Usage: make release VERSION=v0.4.1"; exit 1; \
+	fi
 	@command -v gh >/dev/null 2>&1 || { \
 		echo "gh CLI not found. Install: https://cli.github.com/"; \
 		echo "  brew install gh"; \
 		exit 1; \
 	}
+	@branch=$$(git rev-parse --abbrev-ref HEAD); \
+	if [ "$$branch" != "main" ]; then \
+		echo "error: release must run from main (currently on $$branch)"; exit 1; \
+	fi
+	@if ! git diff --quiet || ! git diff --cached --quiet; then \
+		echo "error: working tree has uncommitted changes; commit or stash first"; exit 1; \
+	fi
+	$(MAKE) bump-skills VERSION=$(VERSION)
+	git add SKILL.md skills/*/SKILL.md
+	@if git diff --cached --quiet; then \
+		echo "No SKILL.md changes to commit."; \
+	else \
+		git commit -m "chore: bump SKILL.md versions to $(VERSION)"; \
+		git push origin main; \
+	fi
+	git tag -a "$(VERSION)" -m "Release $(VERSION)"
+	git push origin "$(VERSION)"
 	gh release create "$(VERSION)" --generate-notes --title "$(VERSION)"
 	@echo ""
 	@echo "Release $(VERSION) published."

@@ -49,7 +49,7 @@ In Claude Code, run:
 
 ### Usage
 
-Once installed, four slash commands are available:
+Once installed, six slash commands are available:
 
 | Command | Description | Example |
 |---|---|---|
@@ -57,6 +57,8 @@ Once installed, four slash commands are available:
 | `/omnisess:search` | Full-text search across sessions | `/omnisess:search "database migration"` |
 | `/omnisess:active` | Show currently running sessions | `/omnisess:active` |
 | `/omnisess:show` | Show full detail for a session | `/omnisess:show claude:5c3f2742` |
+| `/omnisess:recap` | Structured markdown briefing of sessions for a time window | `/omnisess:recap --since 24h` |
+| `/omnisess:ps` | Live Claude process tree with ancestor lineage (macOS) | `/omnisess:ps` |
 
 Each command checks for the `omnisess` binary at invocation time and prints clear install instructions if it is not found.
 
@@ -101,7 +103,9 @@ claude:5c3f2742  ~/prj/myapp  (process alive, modified 47s ago)
 | `omnisess search <query>`     | Full-text search across sessions                  |
 | `omnisess active`             | Show sessions detected as currently running       |
 | `omnisess show <tool:id>`     | Show full detail for a single session             |
+| `omnisess ps`                 | Live Claude process tree with ancestor lineage (macOS) |
 | `omnisess tui`                | Interactive terminal UI for browsing sessions     |
+| `omnisess version`            | Print the installed omnisess version              |
 
 ---
 
@@ -112,7 +116,7 @@ Versioned releases are published to the [GitHub releases page](https://github.co
 Install a specific version:
 
 ```bash
-go install github.com/psacc/omnisess@v0.1.0
+go install github.com/psacc/omnisess@v0.4.1
 ```
 
 Install the latest tagged release:
@@ -120,6 +124,16 @@ Install the latest tagged release:
 ```bash
 go install github.com/psacc/omnisess@latest
 ```
+
+Verify the installed version:
+
+```bash
+omnisess --version
+```
+
+Binaries installed via `go install github.com/psacc/omnisess@vX.Y.Z` embed the
+module version automatically. Binaries built locally with `go build` report
+`(devel)`.
 
 See [`docs/process/release.md`](docs/process/release.md) for the release process.
 
