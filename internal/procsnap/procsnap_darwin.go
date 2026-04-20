@@ -163,3 +163,43 @@ func parsePS(raw []byte) (map[int]procInfo, error) {
 	}
 	return out, nil
 }
+
+// maxAncestorDepth bounds the walk against pathological PPID cycles.
+// A real Unix process tree is never deeper than a few dozen levels.
+const maxAncestorDepth = 64
+
+// walkAncestors returns the chain of processes above startPID, ordered
+// leaf-to-root. Stops at PID 1, an orphan (PPID missing from procs),
+// or a detected cycle.
+func walkAncestors(startPID int, procs map[int]procInfo) []Ancestor {
+	var out []Ancestor
+	self, ok := procs[startPID]
+	if !ok {
+		return out
+	}
+	seen := map[int]bool{startPID: true}
+	ppid := self.PPID
+	for depth := 0; depth < maxAncestorDepth; depth++ {
+		if ppid == 0 {
+			return out
+		}
+		if seen[ppid] {
+			return out
+		}
+		seen[ppid] = true
+		parent, ok := procs[ppid]
+		if !ok {
+			return out
+		}
+		out = append(out, Ancestor{
+			PID:     parent.PID,
+			Command: parent.Command,
+			Args:    parent.Args,
+		})
+		if parent.PID == 1 {
+			return out
+		}
+		ppid = parent.PPID
+	}
+	return out
+}

@@ -226,6 +226,92 @@ func TestParsePS_ScannerError(t *testing.T) {
 	}
 }
 
+func TestWalkAncestors(t *testing.T) {
+	procs := map[int]procInfo{
+		1:     {PID: 1, PPID: 0, Command: "launchd"},
+		100:   {PID: 100, PPID: 1, Command: "loginwindow"},
+		3012:  {PID: 3012, PPID: 100, Command: "iTerm2"},
+		5674:  {PID: 5674, PPID: 3012, Command: "zsh"},
+		52333: {PID: 52333, PPID: 5674, Command: "claude"},
+	}
+	got := walkAncestors(52333, procs)
+	if len(got) != 4 {
+		t.Fatalf("expected 4 ancestors, got %d: %+v", len(got), got)
+	}
+	// Order: leaf-to-root (immediate parent first).
+	wantPIDs := []int{5674, 3012, 100, 1}
+	for i, want := range wantPIDs {
+		if got[i].PID != want {
+			t.Errorf("ancestor[%d].PID = %d, want %d", i, got[i].PID, want)
+		}
+	}
+}
+
+func TestWalkAncestors_Orphan(t *testing.T) {
+	// parent PPID 9999 does not exist — chain stops.
+	procs := map[int]procInfo{
+		52333: {PID: 52333, PPID: 9999, Command: "claude"},
+	}
+	got := walkAncestors(52333, procs)
+	if len(got) != 0 {
+		t.Errorf("orphan must return empty chain, got %+v", got)
+	}
+}
+
+func TestWalkAncestors_SelfReference(t *testing.T) {
+	// Guard against pathological cycles.
+	procs := map[int]procInfo{
+		42: {PID: 42, PPID: 42, Command: "broken"},
+	}
+	got := walkAncestors(42, procs)
+	if len(got) >= 100 {
+		t.Errorf("self-reference must be bounded, got %d", len(got))
+	}
+}
+
+func TestWalkAncestors_StartPIDMissing(t *testing.T) {
+	procs := map[int]procInfo{1: {PID: 1, PPID: 0, Command: "launchd"}}
+	got := walkAncestors(999, procs)
+	if len(got) != 0 {
+		t.Errorf("missing start pid must return empty, got %+v", got)
+	}
+}
+
+func TestWalkAncestors_RootWithPPIDZeroNotPID1(t *testing.T) {
+	// A chain that terminates at a process with PPID==0 that is NOT PID 1.
+	// Exercises the `if ppid == 0 { return out }` guard.
+	procs := map[int]procInfo{
+		2:   {PID: 2, PPID: 0, Command: "kernel_task"},
+		100: {PID: 100, PPID: 2, Command: "child"},
+	}
+	got := walkAncestors(100, procs)
+	if len(got) != 1 || got[0].PID != 2 {
+		t.Errorf("expected [kernel_task(2)], got %+v", got)
+	}
+}
+
+func TestWalkAncestors_DepthExhausted(t *testing.T) {
+	// Build a chain of maxAncestorDepth+2 processes so the loop limit fires.
+	procs := make(map[int]procInfo, maxAncestorDepth+2)
+	// PID 0 = imaginary root (PPID 0 → loop exits via ppid==0 OR depth limit).
+	// To force depth exhaustion: use a long cycle-free chain where the root
+	// has a non-zero PPID that's also missing from the map — but first ensure
+	// we hit the depth cap. Chain: startPID → maxAncestorDepth+1 ancestors,
+	// all connected; the final ancestor's PPID points somewhere not in map.
+	base := 1000
+	depth := maxAncestorDepth + 1
+	for i := 0; i <= depth; i++ {
+		pid := base + i
+		ppid := base + i + 1 // all point to next; the last points outside map
+		procs[pid] = procInfo{PID: pid, PPID: ppid, Command: "proc"}
+	}
+	got := walkAncestors(base, procs)
+	// Must be bounded by maxAncestorDepth (loop runs depth times).
+	if len(got) > maxAncestorDepth {
+		t.Errorf("depth not bounded: got %d ancestors", len(got))
+	}
+}
+
 func TestParsePS_SkipsMalformedVariants(t *testing.T) {
 	// Each case exercises a distinct silent-skip branch inside parsePS.
 	cases := []struct {
