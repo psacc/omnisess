@@ -121,11 +121,16 @@ func ApplySnapshot(sessions []model.Session, snap procsnap.Snapshot) []model.Ses
 	return sessions
 }
 
+// snapshotTickCallback is the tea.Tick callback for the snapshot refresh.
+// Extracted from the inline closure so tests can cover it without waiting
+// the full tick interval for tea.Tick to fire.
+func snapshotTickCallback(time.Time) tea.Msg {
+	return snapshotTickMsg{}
+}
+
 // Init implements tea.Model. Schedules the first snapshot refresh tick.
 func (m Model) Init() tea.Cmd {
-	return tea.Tick(snapshotTickInterval, func(time.Time) tea.Msg {
-		return snapshotTickMsg{}
-	})
+	return tea.Tick(snapshotTickInterval, snapshotTickCallback)
 }
 
 // Update implements tea.Model.
@@ -145,9 +150,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.snapshot = snap
 			m.sessions = ApplySnapshot(m.sessions, snap)
 		}
-		return m, tea.Tick(snapshotTickInterval, func(time.Time) tea.Msg {
-			return snapshotTickMsg{}
-		})
+		return m, tea.Tick(snapshotTickInterval, snapshotTickCallback)
 
 	case tea.KeyMsg:
 		// Clear any inline message on next keypress.

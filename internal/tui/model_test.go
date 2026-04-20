@@ -832,19 +832,12 @@ func TestModel_SnapshotTick_EnumeratorError(t *testing.T) {
 
 func TestModel_Init_SchedulesFirstTick(t *testing.T) {
 	m := New(nil, nil)
-	cmd := m.Init()
-	if cmd == nil {
+	if m.Init() == nil {
 		t.Error("Init must return a tick command")
-	}
-	// Execute the cmd (a tea.Tick closure) to cover the inner closure body.
-	msg := cmd()
-	if _, ok := msg.(snapshotTickMsg); !ok {
-		t.Errorf("Init cmd must produce snapshotTickMsg, got %T", msg)
 	}
 }
 
-func TestModel_SnapshotTick_RescheduleClosure(t *testing.T) {
-	// Cover the reschedule closure returned by the snapshotTickMsg handler.
+func TestModel_SnapshotTick_RescheduleCmd(t *testing.T) {
 	m := New([]model.Session{{ID: "x", Tool: model.ToolClaude, UpdatedAt: time.Now()}}, nil)
 	m.SetEnumerator(func() (procsnap.Snapshot, error) {
 		return procsnap.Snapshot{}, nil
@@ -853,8 +846,11 @@ func TestModel_SnapshotTick_RescheduleClosure(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("expected reschedule cmd")
 	}
-	msg := cmd()
+}
+
+func TestSnapshotTickCallback(t *testing.T) {
+	msg := snapshotTickCallback(time.Time{})
 	if _, ok := msg.(snapshotTickMsg); !ok {
-		t.Errorf("reschedule cmd must produce snapshotTickMsg, got %T", msg)
+		t.Errorf("snapshotTickCallback must produce snapshotTickMsg, got %T", msg)
 	}
 }
