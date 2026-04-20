@@ -149,3 +149,109 @@ func TestFilterAlive(t *testing.T) {
 		t.Errorf("wrong alive PID: %d", got[0].PID)
 	}
 }
+
+func TestParsePS_Basic(t *testing.T) {
+	raw := []byte(`    1     0 launchd          /sbin/launchd
+  100     1 loginwindow      /System/Library/CoreServices/loginwindow.app/Contents/MacOS/loginwindow console
+ 3012   100 iTerm2           /Applications/iTerm.app/Contents/MacOS/iTerm2
+ 5674  3012 zsh              -zsh
+52333  5674 claude           /usr/local/bin/claude
+`)
+	got, err := parsePS(raw)
+	if err != nil {
+		t.Fatalf("parsePS: %v", err)
+	}
+	if len(got) != 5 {
+		t.Fatalf("expected 5 rows, got %d", len(got))
+	}
+	p := got[52333]
+	if p.PID != 52333 || p.PPID != 5674 || p.Command != "claude" {
+		t.Errorf("wrong claude row: %+v", p)
+	}
+	if got[1].Command != "launchd" || got[1].PPID != 0 {
+		t.Errorf("wrong launchd row: %+v", got[1])
+	}
+}
+
+func TestParsePS_Empty(t *testing.T) {
+	got, err := parsePS(nil)
+	if err != nil {
+		t.Fatalf("empty input must not error: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("empty input must yield empty map, got %d", len(got))
+	}
+}
+
+func TestParsePS_SkipsMalformed(t *testing.T) {
+	raw := []byte(`   1     0 launchd          /sbin/launchd
+malformed line no fields
+   5     1 zsh              -zsh
+`)
+	got, err := parsePS(raw)
+	if err != nil {
+		t.Fatalf("parsePS: %v", err)
+	}
+	if len(got) != 2 {
+		t.Errorf("expected 2 valid rows, got %d", len(got))
+	}
+}
+
+func TestParsePS_CommandWithoutArgs(t *testing.T) {
+	raw := []byte("  42     1 kernel_task\n")
+	got, err := parsePS(raw)
+	if err != nil {
+		t.Fatalf("parsePS: %v", err)
+	}
+	p, ok := got[42]
+	if !ok {
+		t.Fatal("row 42 missing")
+	}
+	if p.Command != "kernel_task" || p.Args != "" {
+		t.Errorf("comm-only row wrong: %+v", p)
+	}
+}
+
+func TestParsePS_ScannerError(t *testing.T) {
+	// A single line exceeding the 1MB scanner buffer limit causes sc.Err() to
+	// return bufio.ErrTooLong, exercising the error-return path.
+	line := make([]byte, 1024*1024+1)
+	for i := range line {
+		line[i] = 'x'
+	}
+	line[len(line)-1] = '\n'
+	_, err := parsePS(line)
+	if err == nil {
+		t.Fatal("expected error for oversized line, got nil")
+	}
+}
+
+func TestParsePS_SkipsMalformedVariants(t *testing.T) {
+	// Each case exercises a distinct silent-skip branch inside parsePS.
+	cases := []struct {
+		name string
+		line string
+	}{
+		// trimmed == "": blank line (spaces only) is silently skipped.
+		{"blank_line", "   \n"},
+		// pidEnd <= 0: line has no space after trimming (single token).
+		{"no_space_at_all", "12345\n"},
+		// PID Atoi fails: non-numeric PID field.
+		{"non_numeric_pid", "abc  1 zsh -zsh\n"},
+		// ppidEnd <= 0: PPID field has no trailing space (only one token left after PID).
+		{"ppid_no_space", "  1 2\n"},
+		// PPID Atoi fails: non-numeric PPID field.
+		{"non_numeric_ppid", "  1 abc zsh -zsh\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parsePS([]byte(tc.line))
+			if err != nil {
+				t.Fatalf("parsePS: %v", err)
+			}
+			if len(got) != 0 {
+				t.Errorf("expected 0 rows (malformed skipped), got %d: %v", len(got), got)
+			}
+		})
+	}
+}
