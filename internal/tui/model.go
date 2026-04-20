@@ -48,6 +48,7 @@ type Model struct {
 	toolModes      map[model.Tool][]string
 	snapshot       procsnap.Snapshot
 	showingLineage bool
+	enumerate      func() (procsnap.Snapshot, error)
 }
 
 // New creates a Model pre-loaded with sessions.
@@ -68,6 +69,18 @@ func New(sessions []model.Session, toolModes map[model.Tool][]string) Model {
 // SetSnapshot attaches a snapshot used by the lineage overlay and active flag.
 func (m *Model) SetSnapshot(snap procsnap.Snapshot) {
 	m.snapshot = snap
+}
+
+// snapshotTickMsg fires every 5 seconds to refresh the process snapshot.
+type snapshotTickMsg struct{}
+
+const snapshotTickInterval = 5 * time.Second
+
+// SetEnumerator injects a procsnap enumerator. Callers provide this
+// before launching the program so the TUI can refresh. When nil, tick
+// messages are no-ops.
+func (m *Model) SetEnumerator(e func() (procsnap.Snapshot, error)) {
+	m.enumerate = e
 }
 
 // Selected returns the session the user picked, or nil if they quit.
@@ -108,9 +121,11 @@ func ApplySnapshot(sessions []model.Session, snap procsnap.Snapshot) []model.Ses
 	return sessions
 }
 
-// Init implements tea.Model. Data is pre-loaded, so no initial command.
+// Init implements tea.Model. Schedules the first snapshot refresh tick.
 func (m Model) Init() tea.Cmd {
-	return nil
+	return tea.Tick(snapshotTickInterval, func(time.Time) tea.Msg {
+		return snapshotTickMsg{}
+	})
 }
 
 // Update implements tea.Model.
@@ -121,6 +136,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.clampViewport()
 		return m, nil
+
+	case snapshotTickMsg:
+		if m.enumerate == nil {
+			return m, nil
+		}
+		if snap, err := m.enumerate(); err == nil {
+			m.snapshot = snap
+			m.sessions = ApplySnapshot(m.sessions, snap)
+		}
+		return m, tea.Tick(snapshotTickInterval, func(time.Time) tea.Msg {
+			return snapshotTickMsg{}
+		})
 
 	case tea.KeyMsg:
 		// Clear any inline message on next keypress.

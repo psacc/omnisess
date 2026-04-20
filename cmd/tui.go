@@ -125,6 +125,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	m := tui.New(all, toolModes)
 	if snapOK {
 		m.SetSnapshot(snap)
+		m.SetEnumerator(procsnap.Enumerate)
 	}
 
 	finalModel, err := runProgram(m, tea.WithAltScreen())

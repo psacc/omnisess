@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -566,12 +567,12 @@ func TestFooterHelp_UnknownTool(t *testing.T) {
 // Init
 // ---------------------------------------------------------------------------
 
-// TestInit verifies that Init returns nil (no initial commands).
+// TestInit verifies that Init schedules the first snapshot tick.
 func TestInit(t *testing.T) {
 	m := New(testSessions(), testToolModes())
 	cmd := m.Init()
-	if cmd != nil {
-		t.Errorf("Init() = %v, want nil", cmd)
+	if cmd == nil {
+		t.Error("Init() must return a tick command")
 	}
 }
 
@@ -777,5 +778,83 @@ func TestApplySnapshot_PopulatesRenameTitle(t *testing.T) {
 	}
 	if got[1].Title != "existing preview" {
 		t.Errorf("empty rename must not overwrite existing Title, got %q", got[1].Title)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Snapshot tick
+// ---------------------------------------------------------------------------
+
+func TestModel_SnapshotTick_UpdatesSnapshot(t *testing.T) {
+	sessions := []model.Session{
+		{ID: "aaa", Tool: model.ToolClaude, UpdatedAt: time.Now()},
+	}
+	m := New(sessions, nil)
+
+	// Inject a fake enumerator.
+	calls := 0
+	m.SetEnumerator(func() (procsnap.Snapshot, error) {
+		calls++
+		return procsnap.Snapshot{Sessions: []procsnap.Session{{SessionID: "aaa"}}}, nil
+	})
+
+	// Simulate the tick message delivery.
+	m2, _ := m.Update(snapshotTickMsg{})
+	mm := m2.(Model)
+	if calls != 1 {
+		t.Errorf("expected enumerator to be called once, got %d", calls)
+	}
+	if !mm.snapshot.IsActive("aaa") {
+		t.Error("snapshot must have been stored")
+	}
+}
+
+func TestModel_SnapshotTick_NoEnumerator(t *testing.T) {
+	m := New([]model.Session{{ID: "x", Tool: model.ToolClaude, UpdatedAt: time.Now()}}, nil)
+	m2, cmd := m.Update(snapshotTickMsg{})
+	if cmd != nil {
+		t.Error("nil enumerator must not schedule next tick")
+	}
+	_ = m2
+}
+
+func TestModel_SnapshotTick_EnumeratorError(t *testing.T) {
+	m := New([]model.Session{{ID: "x", Tool: model.ToolClaude, UpdatedAt: time.Now()}}, nil)
+	m.SetEnumerator(func() (procsnap.Snapshot, error) {
+		return procsnap.Snapshot{}, errors.New("boom")
+	})
+	m2, cmd := m.Update(snapshotTickMsg{})
+	if cmd == nil {
+		t.Error("even on error, tick must reschedule")
+	}
+	_ = m2
+}
+
+func TestModel_Init_SchedulesFirstTick(t *testing.T) {
+	m := New(nil, nil)
+	cmd := m.Init()
+	if cmd == nil {
+		t.Error("Init must return a tick command")
+	}
+	// Execute the cmd (a tea.Tick closure) to cover the inner closure body.
+	msg := cmd()
+	if _, ok := msg.(snapshotTickMsg); !ok {
+		t.Errorf("Init cmd must produce snapshotTickMsg, got %T", msg)
+	}
+}
+
+func TestModel_SnapshotTick_RescheduleClosure(t *testing.T) {
+	// Cover the reschedule closure returned by the snapshotTickMsg handler.
+	m := New([]model.Session{{ID: "x", Tool: model.ToolClaude, UpdatedAt: time.Now()}}, nil)
+	m.SetEnumerator(func() (procsnap.Snapshot, error) {
+		return procsnap.Snapshot{}, nil
+	})
+	_, cmd := m.Update(snapshotTickMsg{})
+	if cmd == nil {
+		t.Fatal("expected reschedule cmd")
+	}
+	msg := cmd()
+	if _, ok := msg.(snapshotTickMsg); !ok {
+		t.Errorf("reschedule cmd must produce snapshotTickMsg, got %T", msg)
 	}
 }
