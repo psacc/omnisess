@@ -26,7 +26,8 @@ func TestErrUnsupported_Defined(t *testing.T) {
 	if ErrUnsupported == nil {
 		t.Fatal("ErrUnsupported sentinel must be non-nil")
 	}
-	if !errors.Is(ErrUnsupported, ErrUnsupported) {
-		t.Error("ErrUnsupported must match itself via errors.Is")
+	other := errors.New("unrelated")
+	if errors.Is(ErrUnsupported, other) {
+		t.Error("ErrUnsupported must not match an unrelated error; callers rely on sentinel equality")
 	}
 }
