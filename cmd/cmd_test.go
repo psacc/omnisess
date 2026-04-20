@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -16,6 +17,26 @@ import (
 	"github.com/psacc/omnisess/internal/resume"
 	"github.com/psacc/omnisess/internal/source"
 )
+
+// TestMain jails $HOME to a temp dir for the whole package so tests can
+// never reach the developer's real ~/.claude, ~/.cursor, etc. This is a
+// structural guard — without it any test that forgets to stub will silently
+// scan the 1.5GB real home directory and pad every test run by ~20s. Tests
+// that need synthetic session data should build fixtures under this jail.
+func TestMain(m *testing.M) {
+	tmp, err := os.MkdirTemp("", "omnisess-cmd-test-home-*")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "TestMain: failed to create jailed HOME: %v\n", err)
+		os.Exit(1)
+	}
+	if err := os.Setenv("HOME", tmp); err != nil {
+		fmt.Fprintf(os.Stderr, "TestMain: failed to set HOME: %v\n", err)
+		os.Exit(1)
+	}
+	code := m.Run()
+	_ = os.RemoveAll(tmp)
+	os.Exit(code)
+}
 
 // ---------------------------------------------------------------------------
 // Mock sources for controlled testing
