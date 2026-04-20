@@ -179,7 +179,7 @@ func walkAncestors(startPID int, procs map[int]procInfo) []Ancestor {
 	}
 	seen := map[int]bool{startPID: true}
 	ppid := self.PPID
-	for depth := 0; depth < maxAncestorDepth; depth++ {
+	for range maxAncestorDepth {
 		if ppid == 0 {
 			return out
 		}
