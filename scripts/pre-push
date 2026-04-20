@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Pre-push hook: run what CI enforces but pre-commit does not.
+#
+# pre-commit already runs `make check` (fmt + vet + lint + test) per commit.
+# CI additionally gates on `make cover-check` (100% per-package statement
+# coverage). A PR can pass pre-commit and still fail CI when a new branch
+# lowers coverage in a package. This hook closes that loop locally so we
+# never push a branch that CI will reject for coverage.
+#
+# Bypass with --no-verify (use only when you know what you're doing).
+set -euo pipefail
+
+echo "==> Pre-push: running make cover-check..."
+make cover-check
+
+echo "==> Pre-push: coverage gate OK. Pushing."

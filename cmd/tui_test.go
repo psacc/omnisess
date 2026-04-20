@@ -14,6 +14,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/psacc/omnisess/internal/model"
+	"github.com/psacc/omnisess/internal/procsnap"
 	"github.com/psacc/omnisess/internal/resume"
 	"github.com/psacc/omnisess/internal/tui"
 
@@ -480,4 +481,63 @@ func TestRunProgramClosure(t *testing.T) {
 		tea.WithInput(strings.NewReader("q")),
 		tea.WithOutput(io.Discard),
 	)
+}
+
+// TestRunTUI_ProcsnapWarning covers the `else if !errors.Is(err, ErrUnsupported)`
+// warning branch: procsnap returns a non-ErrUnsupported error, we print a
+// warning to stderr and continue (no error returned from runTUI).
+func TestRunTUI_ProcsnapWarning(t *testing.T) {
+	silenceOutput(t)
+	resetFlags()
+
+	origEnumerate := enumerateProcsnap
+	enumerateProcsnap = func() (procsnap.Snapshot, error) {
+		return procsnap.Snapshot{}, errors.New("mock procsnap failure")
+	}
+	t.Cleanup(func() { enumerateProcsnap = origEnumerate })
+
+	origRunProgram := runProgram
+	runProgram = func(m tea.Model, opts ...tea.ProgramOption) (tea.Model, error) {
+		return m, nil
+	}
+	t.Cleanup(func() { runProgram = origRunProgram })
+
+	flagTool = string(activeSourceName)
+	err := runTUI(newNoopCmd(), nil)
+	if err != nil {
+		t.Errorf("runTUI (procsnap warning): expected nil, got %v", err)
+	}
+}
+
+// TestRunTUI_ProcsnapSuccess covers the success branch of the enumerateProcsnap
+// call in runTUI: Enumerate returns a snapshot without error, so we call
+// tui.ApplySnapshot, then on the model SetSnapshot + SetEnumerator. Without
+// this test, cmd/tui.go's snapOK==true path is uncovered on non-darwin CI
+// (where the real Enumerate always returns ErrUnsupported).
+func TestRunTUI_ProcsnapSuccess(t *testing.T) {
+	silenceOutput(t)
+	resetFlags()
+
+	origEnumerate := enumerateProcsnap
+	enumerateProcsnap = func() (procsnap.Snapshot, error) {
+		return procsnap.Snapshot{
+			Built: time.Now(),
+			Sessions: []procsnap.Session{{
+				PID:       4242,
+				SessionID: "deadbeef-0000-0000-0000-000000000000",
+			}},
+		}, nil
+	}
+	t.Cleanup(func() { enumerateProcsnap = origEnumerate })
+
+	origRunProgram := runProgram
+	runProgram = func(m tea.Model, opts ...tea.ProgramOption) (tea.Model, error) {
+		return m, nil
+	}
+	t.Cleanup(func() { runProgram = origRunProgram })
+
+	flagTool = string(activeSourceName)
+	if err := runTUI(newNoopCmd(), nil); err != nil {
+		t.Errorf("runTUI (procsnap success): expected nil, got %v", err)
+	}
 }

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -8,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/psacc/omnisess/internal/model"
+	"github.com/psacc/omnisess/internal/procsnap"
 )
 
 // testSessions returns a slice of sessions for testing.
@@ -565,12 +567,12 @@ func TestFooterHelp_UnknownTool(t *testing.T) {
 // Init
 // ---------------------------------------------------------------------------
 
-// TestInit verifies that Init returns nil (no initial commands).
+// TestInit verifies that Init schedules the first snapshot tick.
 func TestInit(t *testing.T) {
 	m := New(testSessions(), testToolModes())
 	cmd := m.Init()
-	if cmd != nil {
-		t.Errorf("Init() = %v, want nil", cmd)
+	if cmd == nil {
+		t.Error("Init() must return a tick command")
 	}
 }
 
@@ -668,5 +670,187 @@ func TestClampViewport_ScrollUp(t *testing.T) {
 	m.clampViewport()
 	if m.offset != 0 {
 		t.Errorf("clampViewport scroll-up: offset = %d, want 0", m.offset)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ApplySnapshot
+// ---------------------------------------------------------------------------
+
+func TestApplySnapshot_OverridesClaudeActive(t *testing.T) {
+	sessions := []model.Session{
+		{ID: "live-claude", Tool: model.ToolClaude, Active: false, UpdatedAt: time.Now()},
+		{ID: "dead-claude", Tool: model.ToolClaude, Active: true, UpdatedAt: time.Now()},
+		{ID: "any-cursor", Tool: model.ToolCursor, Active: true, UpdatedAt: time.Now()},
+	}
+	snap := procsnap.Snapshot{
+		Sessions: []procsnap.Session{{SessionID: "live-claude"}},
+	}
+	got := ApplySnapshot(sessions, snap)
+	if !got[0].Active {
+		t.Errorf("live claude must become Active=true")
+	}
+	if got[1].Active {
+		t.Errorf("claude not in snapshot must become Active=false")
+	}
+	if !got[2].Active {
+		t.Errorf("cursor Active must be untouched (was true)")
+	}
+}
+
+func TestApplySnapshot_EmptySnapshotZeroesClaude(t *testing.T) {
+	sessions := []model.Session{
+		{ID: "x", Tool: model.ToolClaude, Active: true, UpdatedAt: time.Now()},
+	}
+	got := ApplySnapshot(sessions, procsnap.Snapshot{})
+	// Empty snapshot overrides: claude session becomes inactive.
+	// This matches "we believe the snapshot when we have it"; callers that
+	// receive ErrUnsupported must not call ApplySnapshot.
+	if got[0].Active {
+		t.Error("empty snapshot must mark claude sessions inactive")
+	}
+}
+
+func TestModel_LineageOverlay_ToggleAndDismiss(t *testing.T) {
+	sessions := []model.Session{
+		{ID: "aaa", Tool: model.ToolClaude, UpdatedAt: time.Now(), Active: true},
+	}
+	snap := procsnap.Snapshot{
+		Sessions: []procsnap.Session{{
+			SessionID: "aaa",
+			PID:       1234,
+			Ancestors: []procsnap.Ancestor{
+				{PID: 100, Command: "zsh"},
+				{PID: 1, Command: "launchd"},
+			},
+		}},
+	}
+	m := New(sessions, nil)
+	m.SetSnapshot(snap)
+
+	// Press 'l' — overlay becomes visible.
+	m2, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	view := m2.View()
+	if !strings.Contains(view, "Lineage") || !strings.Contains(view, "zsh") || !strings.Contains(view, "launchd") {
+		t.Errorf("expected lineage overlay with ancestors, got:\n%s", view)
+	}
+
+	// Press Esc — overlay dismissed.
+	m3, _ := m2.(Model).Update(tea.KeyMsg{Type: tea.KeyEsc})
+	view2 := m3.View()
+	if strings.Contains(view2, "Lineage") {
+		t.Errorf("overlay must dismiss on Esc, still shown:\n%s", view2)
+	}
+}
+
+func TestRenderLineage_NonClaude(t *testing.T) {
+	m := New([]model.Session{{ID: "x", Tool: model.ToolCursor, UpdatedAt: time.Now()}}, nil)
+	m.showingLineage = true
+	view := m.View()
+	if !strings.Contains(view, "not a Claude session") {
+		t.Errorf("expected non-claude notice, got:\n%s", view)
+	}
+}
+
+func TestRenderLineage_NoLiveProcess(t *testing.T) {
+	m := New([]model.Session{{ID: "x", Tool: model.ToolClaude, UpdatedAt: time.Now()}}, nil)
+	m.showingLineage = true
+	view := m.View()
+	if !strings.Contains(view, "no live process") {
+		t.Errorf("expected no-live-process notice, got:\n%s", view)
+	}
+}
+
+func TestApplySnapshot_PopulatesRenameTitle(t *testing.T) {
+	sessions := []model.Session{
+		{ID: "aaa", Tool: model.ToolClaude, Title: "", UpdatedAt: time.Now()},
+		{ID: "bbb", Tool: model.ToolClaude, Title: "existing preview", UpdatedAt: time.Now()},
+	}
+	snap := procsnap.Snapshot{
+		Sessions: []procsnap.Session{
+			{SessionID: "aaa", Name: "pair with alice"},
+			{SessionID: "bbb", Name: ""}, // no /rename
+		},
+	}
+	got := ApplySnapshot(sessions, snap)
+	if got[0].Title != "pair with alice" {
+		t.Errorf("Title = %q, want %q", got[0].Title, "pair with alice")
+	}
+	if got[1].Title != "existing preview" {
+		t.Errorf("empty rename must not overwrite existing Title, got %q", got[1].Title)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Snapshot tick
+// ---------------------------------------------------------------------------
+
+func TestModel_SnapshotTick_UpdatesSnapshot(t *testing.T) {
+	sessions := []model.Session{
+		{ID: "aaa", Tool: model.ToolClaude, UpdatedAt: time.Now()},
+	}
+	m := New(sessions, nil)
+
+	// Inject a fake enumerator.
+	calls := 0
+	m.SetEnumerator(func() (procsnap.Snapshot, error) {
+		calls++
+		return procsnap.Snapshot{Sessions: []procsnap.Session{{SessionID: "aaa"}}}, nil
+	})
+
+	// Simulate the tick message delivery.
+	m2, _ := m.Update(snapshotTickMsg{})
+	mm := m2.(Model)
+	if calls != 1 {
+		t.Errorf("expected enumerator to be called once, got %d", calls)
+	}
+	if !mm.snapshot.IsActive("aaa") {
+		t.Error("snapshot must have been stored")
+	}
+}
+
+func TestModel_SnapshotTick_NoEnumerator(t *testing.T) {
+	m := New([]model.Session{{ID: "x", Tool: model.ToolClaude, UpdatedAt: time.Now()}}, nil)
+	m2, cmd := m.Update(snapshotTickMsg{})
+	if cmd != nil {
+		t.Error("nil enumerator must not schedule next tick")
+	}
+	_ = m2
+}
+
+func TestModel_SnapshotTick_EnumeratorError(t *testing.T) {
+	m := New([]model.Session{{ID: "x", Tool: model.ToolClaude, UpdatedAt: time.Now()}}, nil)
+	m.SetEnumerator(func() (procsnap.Snapshot, error) {
+		return procsnap.Snapshot{}, errors.New("boom")
+	})
+	m2, cmd := m.Update(snapshotTickMsg{})
+	if cmd == nil {
+		t.Error("even on error, tick must reschedule")
+	}
+	_ = m2
+}
+
+func TestModel_Init_SchedulesFirstTick(t *testing.T) {
+	m := New(nil, nil)
+	if m.Init() == nil {
+		t.Error("Init must return a tick command")
+	}
+}
+
+func TestModel_SnapshotTick_RescheduleCmd(t *testing.T) {
+	m := New([]model.Session{{ID: "x", Tool: model.ToolClaude, UpdatedAt: time.Now()}}, nil)
+	m.SetEnumerator(func() (procsnap.Snapshot, error) {
+		return procsnap.Snapshot{}, nil
+	})
+	_, cmd := m.Update(snapshotTickMsg{})
+	if cmd == nil {
+		t.Fatal("expected reschedule cmd")
+	}
+}
+
+func TestSnapshotTickCallback(t *testing.T) {
+	msg := snapshotTickCallback(time.Time{})
+	if _, ok := msg.(snapshotTickMsg); !ok {
+		t.Errorf("snapshotTickCallback must produce snapshotTickMsg, got %T", msg)
 	}
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/psacc/omnisess/internal/model"
 	"github.com/psacc/omnisess/internal/output"
+	"github.com/psacc/omnisess/internal/procsnap"
 )
 
 // Column widths (fixed layout).
@@ -35,16 +36,19 @@ var (
 
 // Model is the Bubble Tea model for the session picker TUI.
 type Model struct {
-	sessions     []model.Session
-	cursor       int
-	offset       int // scroll offset for viewport
-	width        int
-	height       int
-	selected     *model.Session
-	selectedMode string // resume mode chosen by user (e.g. "resume", "tmux", "aoe", "fork")
-	quitting     bool
-	message      string // inline error/info message
-	toolModes    map[model.Tool][]string
+	sessions       []model.Session
+	cursor         int
+	offset         int // scroll offset for viewport
+	width          int
+	height         int
+	selected       *model.Session
+	selectedMode   string // resume mode chosen by user (e.g. "resume", "tmux", "aoe", "fork")
+	quitting       bool
+	message        string // inline error/info message
+	toolModes      map[model.Tool][]string
+	snapshot       procsnap.Snapshot
+	showingLineage bool
+	enumerate      func() (procsnap.Snapshot, error)
 }
 
 // New creates a Model pre-loaded with sessions.
@@ -60,6 +64,23 @@ func New(sessions []model.Session, toolModes map[model.Tool][]string) Model {
 		height:    24,
 		toolModes: toolModes,
 	}
+}
+
+// SetSnapshot attaches a snapshot used by the lineage overlay and active flag.
+func (m *Model) SetSnapshot(snap procsnap.Snapshot) {
+	m.snapshot = snap
+}
+
+// snapshotTickMsg fires every 5 seconds to refresh the process snapshot.
+type snapshotTickMsg struct{}
+
+const snapshotTickInterval = 5 * time.Second
+
+// SetEnumerator injects a procsnap enumerator. Callers provide this
+// before launching the program so the TUI can refresh. When nil, tick
+// messages are no-ops.
+func (m *Model) SetEnumerator(e func() (procsnap.Snapshot, error)) {
+	m.enumerate = e
 }
 
 // Selected returns the session the user picked, or nil if they quit.
@@ -78,9 +99,38 @@ func (m Model) Quitting() bool {
 	return m.quitting
 }
 
-// Init implements tea.Model. Data is pre-loaded, so no initial command.
+// ApplySnapshot overrides the Active flag for every claude session based on
+// the snapshot, and cascades the live /rename Name into Title when non-empty.
+// Non-claude sessions are untouched. Caller must only invoke this when
+// Enumerate returned nil error (never on ErrUnsupported).
+func ApplySnapshot(sessions []model.Session, snap procsnap.Snapshot) []model.Session {
+	bySessionID := make(map[string]procsnap.Session, len(snap.Sessions))
+	for _, s := range snap.Sessions {
+		bySessionID[s.SessionID] = s
+	}
+	for i := range sessions {
+		if sessions[i].Tool != model.ToolClaude {
+			continue
+		}
+		live, ok := bySessionID[sessions[i].ID]
+		sessions[i].Active = ok
+		if ok && live.Name != "" {
+			sessions[i].Title = live.Name
+		}
+	}
+	return sessions
+}
+
+// snapshotTickCallback is the tea.Tick callback for the snapshot refresh.
+// Extracted from the inline closure so tests can cover it without waiting
+// the full tick interval for tea.Tick to fire.
+func snapshotTickCallback(time.Time) tea.Msg {
+	return snapshotTickMsg{}
+}
+
+// Init implements tea.Model. Schedules the first snapshot refresh tick.
 func (m Model) Init() tea.Cmd {
-	return nil
+	return tea.Tick(snapshotTickInterval, snapshotTickCallback)
 }
 
 // Update implements tea.Model.
@@ -92,12 +142,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.clampViewport()
 		return m, nil
 
+	case snapshotTickMsg:
+		if m.enumerate == nil {
+			return m, nil
+		}
+		if snap, err := m.enumerate(); err == nil {
+			m.snapshot = snap
+			m.sessions = ApplySnapshot(m.sessions, snap)
+		}
+		return m, tea.Tick(snapshotTickInterval, snapshotTickCallback)
+
 	case tea.KeyMsg:
 		// Clear any inline message on next keypress.
 		m.message = ""
 
 		switch msg.String() {
-		case "q", "esc", "ctrl+c":
+		case "l":
+			m.showingLineage = true
+			m.message = ""
+			return m, nil
+		case "esc":
+			if m.showingLineage {
+				m.showingLineage = false
+				return m, nil
+			}
+			m.quitting = true
+			return m, tea.Quit
+		case "q", "ctrl+c":
 			m.quitting = true
 			return m, tea.Quit
 
@@ -228,6 +299,10 @@ func (m Model) View() string {
 	b.WriteString(styleFooter.Render(footer))
 	b.WriteByte('\n')
 
+	if m.showingLineage && len(m.sessions) > 0 {
+		b.WriteString(m.renderLineage())
+	}
+
 	return b.String()
 }
 
@@ -262,6 +337,33 @@ func (m Model) footerHelp() string {
 
 	parts = append(parts, "q: quit")
 	return strings.Join(parts, "  ")
+}
+
+// renderLineage renders the lineage overlay for the currently selected session.
+func (m Model) renderLineage() string {
+	sess := m.sessions[m.cursor]
+	if sess.Tool != model.ToolClaude {
+		return styleFooter.Render("Lineage unavailable: not a Claude session.\n")
+	}
+	var live *procsnap.Session
+	for i := range m.snapshot.Sessions {
+		if m.snapshot.Sessions[i].SessionID == sess.ID {
+			live = &m.snapshot.Sessions[i]
+			break
+		}
+	}
+	if live == nil {
+		return styleFooter.Render("Lineage: session has no live process.\n")
+	}
+	var sb strings.Builder
+	sb.WriteString(styleHeader.Render("Lineage"))
+	sb.WriteByte('\n')
+	fmt.Fprintf(&sb, "  claude (%d)\n", live.PID)
+	for _, a := range live.Ancestors {
+		fmt.Fprintf(&sb, "  └─ %s (%d)\n", a.Command, a.PID)
+	}
+	sb.WriteString(styleFooter.Render("(esc to dismiss)\n"))
+	return sb.String()
 }
 
 // renderRow formats a single session row.
