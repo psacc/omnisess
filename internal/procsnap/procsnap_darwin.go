@@ -82,7 +82,12 @@ func scanSessionDir(dir string) ([]sessionFile, error) {
 // liveness probe: returns nil if the process exists and we can signal it.
 var killFn = func(pid int) error { return syscall.Kill(pid, 0) }
 
-// filterAlive returns only entries whose PID is currently a live process.
+// filterAlive returns only entries whose PID is currently a live process we
+// own. EPERM (process exists but owned by another user) is treated as dead:
+// a PID we cannot signal is almost certainly a post-crash PID reuse by some
+// unrelated system process, not a live Claude session. Claude writes its
+// PID file as the same user that runs the process, so the happy path never
+// sees EPERM.
 func filterAlive(in []sessionFile) []sessionFile {
 	out := make([]sessionFile, 0, len(in))
 	for _, e := range in {
