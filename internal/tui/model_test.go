@@ -697,7 +697,7 @@ func TestApplySnapshot_OverridesClaudeActive(t *testing.T) {
 	}
 }
 
-func TestApplySnapshot_UnsupportedIsNoop(t *testing.T) {
+func TestApplySnapshot_EmptySnapshotZeroesClaude(t *testing.T) {
 	sessions := []model.Session{
 		{ID: "x", Tool: model.ToolClaude, Active: true, UpdatedAt: time.Now()},
 	}
