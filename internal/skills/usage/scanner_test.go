@@ -1,6 +1,8 @@
 package usage
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -60,6 +62,37 @@ func TestScanFileTimestampsParse(t *testing.T) {
 		if inv.Timestamp.IsZero() {
 			t.Errorf("zero timestamp on %+v", inv)
 		}
+	}
+}
+
+func TestFindSessionFilesRecursive(t *testing.T) {
+	dir := t.TempDir()
+	// Top-level
+	mustWriteFile(t, filepath.Join(dir, "proj-a", "session1.jsonl"), "")
+	// Subagents subdir (the bug location)
+	mustWriteFile(t, filepath.Join(dir, "proj-a", "subagents", "agent-1.jsonl"), "")
+	// Deeper nesting (should still be picked up)
+	mustWriteFile(t, filepath.Join(dir, "proj-b", "deep", "deeper", "session.jsonl"), "")
+	// Non-jsonl ignored
+	mustWriteFile(t, filepath.Join(dir, "proj-a", "ignore.txt"), "")
+
+	got, err := FindSessionFiles(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 {
+		t.Errorf("got %d files, want 3: %v", len(got), got)
+	}
+}
+
+// mustWriteFile creates parent dirs and writes the file.
+func mustWriteFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 

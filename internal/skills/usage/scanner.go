@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/psacc/omnisess/internal/skills"
@@ -147,27 +149,23 @@ func parseTimestamp(s string) time.Time {
 	return time.Time{}
 }
 
-// FindSessionFiles returns all *.jsonl files under ~/.claude/projects.
+// FindSessionFiles returns all *.jsonl files under projectsRoot at any depth.
 func FindSessionFiles(projectsRoot string) ([]string, error) {
-	entries, err := os.ReadDir(projectsRoot)
+	var out []string
+	err := filepath.WalkDir(projectsRoot, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		if !d.IsDir() && strings.HasSuffix(d.Name(), ".jsonl") {
+			out = append(out, path)
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
-	}
-	var out []string
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		sub := projectsRoot + "/" + e.Name()
-		files, err := os.ReadDir(sub)
-		if err != nil {
-			continue
-		}
-		for _, f := range files {
-			if !f.IsDir() && len(f.Name()) > 6 && f.Name()[len(f.Name())-6:] == ".jsonl" {
-				out = append(out, sub+"/"+f.Name())
-			}
-		}
 	}
 	return out, nil
 }
