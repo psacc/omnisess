@@ -17,6 +17,24 @@ import (
 	"github.com/psacc/omnisess/internal/skills/usage"
 )
 
+// auditDeps holds injectable dependencies for runSkillsAudit.
+// Tests override these to avoid real filesystem access.
+type auditDeps struct {
+	homeDir          func() (string, error)
+	findSessionFiles func(root string) ([]string, error)
+}
+
+// defaultAuditDeps returns production dependencies.
+func defaultAuditDeps() auditDeps {
+	return auditDeps{
+		homeDir:          os.UserHomeDir,
+		findSessionFiles: usage.FindSessionFiles,
+	}
+}
+
+// auditDepsVar is the active dependency set; tests can replace it.
+var auditDepsVar = defaultAuditDeps()
+
 var (
 	auditRoots     []string
 	auditNoGlobals bool
@@ -47,6 +65,11 @@ func init() {
 }
 
 func runSkillsAudit(cmd *cobra.Command, args []string) error {
+	deps := auditDepsVar
+	return runSkillsAuditWith(cmd, deps)
+}
+
+func runSkillsAuditWith(cmd *cobra.Command, deps auditDeps) error {
 	if len(auditRoots) == 0 && auditNoGlobals {
 		return fmt.Errorf("at least one --root is required (or remove --no-globals)")
 	}
@@ -67,9 +90,12 @@ func runSkillsAudit(cmd *cobra.Command, args []string) error {
 	}
 
 	// 2. Scan usage
-	home, _ := os.UserHomeDir()
+	home, err := deps.homeDir()
+	if err != nil {
+		home = ""
+	}
 	projectsRoot := filepath.Join(home, ".claude", "projects")
-	files, err := usage.FindSessionFiles(projectsRoot)
+	files, err := deps.findSessionFiles(projectsRoot)
 	if err != nil {
 		return fmt.Errorf("find sessions: %w", err)
 	}
@@ -101,7 +127,7 @@ func runSkillsAudit(cmd *cobra.Command, args []string) error {
 	res.OmnisessVersion = resolveVersion()
 
 	// 5. Render
-	var w io.Writer = os.Stdout
+	w := io.Writer(cmd.OutOrStdout())
 	if auditOutput != "" {
 		f, err := os.Create(auditOutput)
 		if err != nil {
