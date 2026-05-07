@@ -15,18 +15,18 @@
 
 A fresh agent should read these in order before touching code:
 
-1. `/Users/paolo.sacconier/prj/psacc/omnisess/CLAUDE.md` — omnisess invariants (read-only, no CGO, source isolation, Go 1.22+)
-2. `/Users/paolo.sacconier/prj/psacc/omnisess/ARCHITECTURE.md` — package layout
-3. `/Users/paolo.sacconier/prj/psacc/omnisess/docs/process/git-workflow.md` — branch + merge rules
-4. `/Users/paolo.sacconier/prj/psacc/omnisess/docs/dev-harness.md` — `make check` workflow
-5. `/Users/paolo.sacconier/prj/psacc/omnisess/internal/source/claude/parser.go` — reference for how Claude JSONL is parsed today (we will NOT reuse it, but the structure is analogous)
+1. `CLAUDE.md` — omnisess invariants (read-only, no CGO, source isolation, Go 1.22+)
+2. `ARCHITECTURE.md` — package layout
+3. `docs/process/git-workflow.md` — branch + merge rules
+4. `docs/dev-harness.md` — `make check` workflow
+5. `internal/source/claude/parser.go` — reference for how Claude JSONL is parsed today (we will NOT reuse it, but the structure is analogous)
 6. This plan, end to end, before writing any code.
 
 ---
 
 ## Why this exists
 
-**Problem.** A typical user session on Paolo's machine loads ~168 skills into the Claude Code system reminder. The `gws-*` (42), `recipe-*` (41), and `persona-*` (10) clusters alone account for 93 skills (≈55%). Each skill name + description costs tokens at every session start. Cost is fixed at load time, benefit only accrues on invocation. There is no native Anthropic command to measure which skills are actually used (open issue [anthropics/claude-code#35319](https://github.com/anthropics/claude-code/issues/35319) — confirmed gap as of 2026-05).
+**Problem.** A typical user session on the author's machine loads ~168 skills into the Claude Code system reminder. The `gws-*` (42), `recipe-*` (41), and `persona-*` (10) clusters alone account for 93 skills (≈55%). Each skill name + description costs tokens at every session start. Cost is fixed at load time, benefit only accrues on invocation. There is no native Anthropic command to measure which skills are actually used (open issue [anthropics/claude-code#35319](https://github.com/anthropics/claude-code/issues/35319) — confirmed gap as of 2026-05).
 
 **Decision framing.** Skills are workflow-shaped (invocation-scoped), not rules-shaped (always-on). So "did you actually use it in the last 90 days" is a meaningful question. We classify and report; the human acts.
 
