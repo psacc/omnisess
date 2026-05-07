@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -24,11 +25,16 @@ type ScanOptions struct {
 	Since time.Time // discard invocations strictly before this timestamp; zero = no filter
 }
 
+// scanFileFn is the function used to parse invocations from a single JSONL file.
+// It is a package-level var so tests can inject errors without needing
+// OS-level I/O tricks (e.g., a disk error mid-read).
+var scanFileFn = scanFile
+
 // Scan reads all JSONL files and returns merged invocations matching options.
 func Scan(opts ScanOptions) ([]skills.Invocation, error) {
 	var out []skills.Invocation
 	for _, f := range opts.Files {
-		invs, err := scanFile(f)
+		invs, err := scanFileFn(f)
 		if err != nil {
 			return nil, err
 		}
@@ -67,15 +73,23 @@ type skillInput struct {
 	Skill string `json:"skill"`
 }
 
+// scanReaderFn is the function used to parse invocations from an open reader.
+// It is a package-level var so tests can inject an error into the scanner
+// without needing OS-level tricks (e.g., a mid-read disk error).
+var scanReaderFn = scanReader
+
 func scanFile(path string) ([]skills.Invocation, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open %s: %w", path, err)
 	}
 	defer f.Close()
+	return scanReaderFn(f, path)
+}
 
+func scanReader(r io.Reader, path string) ([]skills.Invocation, error) {
 	var out []skills.Invocation
-	sc := bufio.NewScanner(f)
+	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 64*1024), 16*1024*1024) // sessions can have large lines
 	for sc.Scan() {
 		var line rawLine
