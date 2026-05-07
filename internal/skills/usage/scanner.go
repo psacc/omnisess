@@ -112,8 +112,24 @@ func scanFile(path string) ([]skills.Invocation, error) {
 			if err := json.Unmarshal(line.Message, &msg); err != nil {
 				continue
 			}
-			content, ok := msg.Content.(string)
-			if !ok {
+			var content string
+			switch v := msg.Content.(type) {
+			case string:
+				content = v
+			case []interface{}:
+				var sb strings.Builder
+				for _, item := range v {
+					m, ok := item.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					if t, ok := m["text"].(string); ok {
+						sb.WriteString(t)
+						sb.WriteString("\n")
+					}
+				}
+				content = sb.String()
+			default:
 				continue
 			}
 			for _, m := range commandNameRE.FindAllStringSubmatch(content, -1) {

@@ -26,8 +26,8 @@ func TestScanFileExtractsBothInvocationKinds(t *testing.T) {
 	if model != 2 {
 		t.Errorf("model invocations: got %d want 2", model)
 	}
-	if user != 2 {
-		t.Errorf("user invocations: got %d want 2", user)
+	if user != 3 {
+		t.Errorf("user invocations: got %d want 3", user)
 	}
 }
 
@@ -42,6 +42,7 @@ func TestScanFileSkillNames(t *testing.T) {
 		"agent-slack":     1,
 		"figma:figma-use": 1,
 		"calendar":        1,
+		"array-skill":     1,
 	}
 	for name, want := range expected {
 		if names[name] != want {
@@ -110,8 +111,21 @@ func TestScanWindowFiltersBefore(t *testing.T) {
 			t.Errorf("invocation %+v before cutoff %v", inv, cutoff)
 		}
 	}
-	// Only the 2026-05-02 calendar invocation should remain.
-	if len(got) != 1 {
-		t.Errorf("got %d invocations, want 1", len(got))
+	// Both 2026-05-02 (calendar) and 2026-05-03 (array-skill) survive the cutoff.
+	if len(got) != 2 {
+		t.Errorf("got %d invocations, want 2", len(got))
+	}
+}
+
+func TestScanFileHandlesArrayContent(t *testing.T) {
+	got, _ := scanFile("testdata/sample.jsonl")
+	var found bool
+	for _, inv := range got {
+		if inv.SkillName == "array-skill" && inv.Kind == skills.InvocationUser {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("array-content user invocation should be extracted")
 	}
 }
