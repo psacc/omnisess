@@ -4,9 +4,15 @@ package allowlist
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 )
+
+// scanAllowlistFn is the function used to parse entries from an open reader.
+// It is a package-level var so tests can inject a broken reader to exercise
+// the bufio.Scanner error path in Load.
+var scanAllowlistFn = scanAllowlist
 
 // Load reads an allowlist file. Returns the deduplicated, ordered list of
 // skill names. Empty path returns an empty slice (no allowlist).
@@ -22,10 +28,14 @@ func Load(path string) ([]string, error) {
 		return nil, fmt.Errorf("allowlist: %w", err)
 	}
 	defer f.Close()
+	return scanAllowlistFn(f)
+}
 
+// scanAllowlist reads allowlist entries from r.
+func scanAllowlist(r io.Reader) ([]string, error) {
 	seen := make(map[string]struct{})
 	var out []string
-	sc := bufio.NewScanner(f)
+	sc := bufio.NewScanner(r)
 	for sc.Scan() {
 		line := sc.Text()
 		if i := strings.Index(line, "#"); i >= 0 {
