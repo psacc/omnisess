@@ -83,3 +83,35 @@ func TestMarkdownDeterministic(t *testing.T) {
 		t.Errorf("markdown output should be deterministic; diff:\n--A--\n%s\n--B--\n%s", a.String(), b.String())
 	}
 }
+
+func TestMarkdownEmptyResult(t *testing.T) {
+	// Verify all "empty" placeholder branches (_None._ variants) are exercised.
+	res := skills.AuditResult{
+		Window:          30 * 24 * time.Hour,
+		GeneratedAt:     time.Date(2026, 5, 7, 0, 0, 0, 0, time.UTC),
+		Roots:           nil, // empty roots → "Roots: " with empty join
+		GlobalsIncluded: false,
+		SessionsParsed:  0,
+		OmnisessVersion: "v0.0.0",
+		Skills:          nil, // no skills → Archive/Borderline/Unknown are all empty
+		GhostUsage:      nil,
+		UnmatchedAllow:  nil,
+	}
+	var buf bytes.Buffer
+	if err := Markdown(&buf, res); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	// All four "None" placeholders should appear.
+	for _, want := range []string{
+		"_None._", // Archive candidates
+		"_None._", // Borderline (same string)
+		"_None._", // Unknown (same string)
+		"_None — every invocation matched a discovered skill._", // Ghost usage
+		"_All allowlist entries matched a discovered skill._",   // Unmatched allowlist
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("empty result output missing %q\nfull output:\n%s", want, out)
+		}
+	}
+}
