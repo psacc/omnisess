@@ -146,6 +146,7 @@ to remove a skill.
 
 ## v0.5+ roadmap
 
+- **Collision reporting** — when the same skill name is discovered in multiple locations (e.g., both global and project), report the collision in `AuditResult` rather than silently deduplicating. The dedup rule (project beats global) is already implemented in the walker; surfacing the list is deferred to v0.5+.
 - **Codex parser** — scan `~/.codex/sessions/**/*.jsonl` once the omnisess Codex
   `Source` lands; promote Codex-discovered skills from Unknown to a real tier
 - **Cursor / Gemini parsers** — same; depends on those Sources shipping

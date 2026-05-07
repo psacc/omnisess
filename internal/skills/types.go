@@ -63,9 +63,8 @@ type AuditResult struct {
 	Roots           []string
 	GlobalsIncluded bool
 	SessionsParsed  int
-	Skills          []SkillAudit        // sorted by Tier then descending Total
-	GhostUsage      []string            // skill names invoked but not discovered
-	Collisions      map[string][]string // skill name → list of paths
-	UnmatchedAllow  []string            // allowlist entries not matching any skill
+	Skills          []SkillAudit // sorted by Tier then descending Total
+	GhostUsage      []string     // skill names invoked but not discovered
+	UnmatchedAllow  []string     // allowlist entries not matching any skill
 	OmnisessVersion string
 }
