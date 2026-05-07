@@ -3,6 +3,7 @@ package audit
 
 import (
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/psacc/omnisess/internal/skills"
@@ -44,17 +45,27 @@ func Tier(in TierInput) skills.AuditResult {
 		if inv.Timestamp.Before(cutoff) {
 			continue
 		}
-		if _, known := byName[inv.SkillName]; !known {
+		matched := inv.SkillName
+		if _, known := byName[matched]; !known {
+			// Fallback: strip "namespace:" prefix and match the bare suffix.
+			if i := strings.Index(matched, ":"); i >= 0 {
+				bare := matched[i+1:]
+				if _, known := byName[bare]; known {
+					matched = bare
+				}
+			}
+		}
+		if _, known := byName[matched]; !known {
 			if _, dup := seenGhost[inv.SkillName]; !dup {
 				ghosts = append(ghosts, inv.SkillName)
 				seenGhost[inv.SkillName] = struct{}{}
 			}
 			continue
 		}
-		c, ok := invCounts[inv.SkillName]
+		c, ok := invCounts[matched]
 		if !ok {
 			c = &counts{}
-			invCounts[inv.SkillName] = c
+			invCounts[matched] = c
 		}
 		switch inv.Kind {
 		case skills.InvocationModel:

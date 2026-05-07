@@ -125,6 +125,44 @@ func TestTier_GhostUsage_recorded(t *testing.T) {
 	}
 }
 
+func TestTier_NamespacedInvocation_matches_bare(t *testing.T) {
+	now := time.Now()
+	res := Tier(TierInput{
+		Skills: []skills.SkillInfo{newSkill("datadog-cli", skills.SourceClaudeGlobal)},
+		Invocations: []skills.Invocation{
+			newInv("ops:datadog-cli", "user", now),
+			newInv("ops:datadog-cli", "user", now),
+			newInv("ops:datadog-cli", "user", now),
+		},
+		Window: 90 * 24 * time.Hour,
+		Now:    now,
+	})
+	if res.Skills[0].Tier != skills.TierKeep {
+		t.Errorf("got %v want Keep (namespaced invocations should match bare)", res.Skills[0].Tier)
+	}
+	if res.Skills[0].UserInvoked != 3 {
+		t.Errorf("UserInvoked: got %d want 3", res.Skills[0].UserInvoked)
+	}
+	if len(res.GhostUsage) != 0 {
+		t.Errorf("should not be ghost: %v", res.GhostUsage)
+	}
+}
+
+func TestTier_NamespacedGhost_keepsOriginalName(t *testing.T) {
+	now := time.Now()
+	res := Tier(TierInput{
+		Skills: []skills.SkillInfo{newSkill("real-skill", skills.SourceClaudeGlobal)},
+		Invocations: []skills.Invocation{
+			newInv("ops:never-existed", "user", now),
+		},
+		Window: 90 * 24 * time.Hour,
+		Now:    now,
+	})
+	if len(res.GhostUsage) != 1 || res.GhostUsage[0] != "ops:never-existed" {
+		t.Errorf("GhostUsage should record original namespaced name; got %v", res.GhostUsage)
+	}
+}
+
 func TestTier_UnmatchedAllowlist_recorded(t *testing.T) {
 	now := time.Now()
 	res := Tier(TierInput{
