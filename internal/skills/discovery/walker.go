@@ -4,12 +4,19 @@ package discovery
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/psacc/omnisess/internal/skills"
 )
+
+// scanFrontmatterFn is the function used to parse frontmatter from an open file.
+// It is a package-level var so tests can inject a broken reader to exercise
+// the scanFrontmatter error path inside parseSkillFile without needing an
+// actual unreadable file.
+var scanFrontmatterFn = scanFrontmatter
 
 // parseSkillFile reads a SKILL.md and extracts frontmatter metadata.
 // Returns a SkillInfo with Path, DescChars, BodyBytes, LastModified populated.
@@ -33,9 +40,22 @@ func parseSkillFile(path string) (skills.SkillInfo, error) {
 	}
 	defer f.Close()
 
-	sc := bufio.NewScanner(f)
+	name, descChars, err := scanFrontmatterFn(f, path)
+	if err != nil {
+		return info, err
+	}
+	info.Name = name
+	info.DescChars = descChars
+	return info, nil
+}
+
+// scanFrontmatter parses YAML frontmatter (between "---" delimiters) from r.
+// Returns name, description char count, and any scanner error.
+// label is used only for error message formatting (typically the file path).
+func scanFrontmatter(r io.Reader, label string) (name string, descChars int, err error) {
+	sc := bufio.NewScanner(r)
 	if !sc.Scan() || strings.TrimSpace(sc.Text()) != "---" {
-		return info, nil // no frontmatter
+		return "", 0, nil // no frontmatter
 	}
 
 	var (
@@ -55,7 +75,7 @@ func parseSkillFile(path string) (skills.SkillInfo, error) {
 				currentField = key
 				switch key {
 				case "name":
-					info.Name = stripQuotes(val)
+					name = stripQuotes(val)
 				case "description":
 					if val == "|" || val == ">" {
 						// multiline; collect indented lines below
@@ -74,11 +94,10 @@ func parseSkillFile(path string) (skills.SkillInfo, error) {
 			}
 		}
 	}
-	if err := sc.Err(); err != nil {
-		return info, fmt.Errorf("scan %s: %w", path, err)
+	if scanErr := sc.Err(); scanErr != nil {
+		return name, 0, fmt.Errorf("scan %s: %w", label, scanErr)
 	}
-	info.DescChars = len(strings.Join(descLines, " "))
-	return info, nil
+	return name, len(strings.Join(descLines, " ")), nil
 }
 
 func stripQuotes(s string) string {
