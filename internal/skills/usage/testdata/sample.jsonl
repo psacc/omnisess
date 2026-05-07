@@ -1,0 +1,6 @@
+{"type":"user","message":{"role":"user","content":"<command-name>/grill-me</command-name>\n<command-message>grill-me</command-message>"},"timestamp":"2026-05-01T08:00:00.000Z","sessionId":"sess-1"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Skill","input":{"skill":"agent-slack"}}]},"timestamp":"2026-05-01T08:00:05.000Z","sessionId":"sess-1"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Read","input":{"file_path":"/etc/passwd"}}]},"timestamp":"2026-05-01T08:00:10.000Z","sessionId":"sess-1"}
+{"type":"user","message":{"role":"user","content":"<command-name>/figma:figma-use</command-name>"},"timestamp":"2026-05-01T08:01:00.000Z","sessionId":"sess-1"}
+{"type":"user","message":{"role":"user","content":"plain text, no command"},"timestamp":"2026-05-01T08:02:00.000Z","sessionId":"sess-1"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Skill","input":{"skill":"calendar"}}]},"timestamp":"2026-05-02T09:00:00.000Z","sessionId":"sess-2"}
