@@ -175,3 +175,93 @@ func TestTier_UnmatchedAllowlist_recorded(t *testing.T) {
 		t.Errorf("UnmatchedAllow: got %v want [ghost-allow]", res.UnmatchedAllow)
 	}
 }
+
+func TestTier_MultiTierSort(t *testing.T) {
+	// One skill per tier, in reverse order; verify sorted output: Keep < Borderline < Archive < Unknown.
+	now := time.Now()
+	res := Tier(TierInput{
+		Skills: []skills.SkillInfo{
+			newSkill("codex-x", skills.SourceCodexProject), // Unknown
+			newSkill("unused", skills.SourceClaudeGlobal),  // Archive (0 invocations)
+			newSkill("rare", skills.SourceClaudeGlobal),    // Borderline (1 invocation)
+			newSkill("popular", skills.SourceClaudeGlobal), // Keep (3 invocations)
+		},
+		Invocations: []skills.Invocation{
+			newInv("popular", "model", now),
+			newInv("popular", "user", now),
+			newInv("popular", "model", now),
+			newInv("rare", "user", now),
+		},
+		Window: 90 * 24 * time.Hour,
+		Now:    now,
+	})
+	wantTiers := []skills.Tier{skills.TierKeep, skills.TierBorderline, skills.TierArchive, skills.TierUnknown}
+	if len(res.Skills) != len(wantTiers) {
+		t.Fatalf("got %d skills, want %d", len(res.Skills), len(wantTiers))
+	}
+	for i, want := range wantTiers {
+		if res.Skills[i].Tier != want {
+			t.Errorf("position %d: got tier %v want %v (skill: %s)", i, res.Skills[i].Tier, want, res.Skills[i].Skill.Name)
+		}
+	}
+}
+
+func TestTierOrder_BogusValue(t *testing.T) {
+	// tierOrder must return 4 (lowest priority, sorts last) for any unknown Tier value.
+	got := tierOrder(skills.Tier("Bogus"))
+	if got != 4 {
+		t.Errorf("tierOrder(Bogus) = %d, want 4", got)
+	}
+}
+
+func TestTier_SameTierSecondarySort(t *testing.T) {
+	// Two Keep-tier skills: "busy" with 5 invocations and "quiet" with 3.
+	// They should be sorted by Total descending (busy before quiet) when tiers are equal.
+	now := time.Now()
+	res := Tier(TierInput{
+		Skills: []skills.SkillInfo{
+			newSkill("quiet", skills.SourceClaudeGlobal), // 3 invocations → Keep
+			newSkill("busy", skills.SourceClaudeGlobal),  // 5 invocations → Keep
+		},
+		Invocations: []skills.Invocation{
+			newInv("quiet", "model", now),
+			newInv("quiet", "user", now),
+			newInv("quiet", "model", now),
+			newInv("busy", "model", now),
+			newInv("busy", "user", now),
+			newInv("busy", "model", now),
+			newInv("busy", "user", now),
+			newInv("busy", "model", now),
+		},
+		Window: 90 * 24 * time.Hour,
+		Now:    now,
+	})
+	if len(res.Skills) != 2 {
+		t.Fatalf("expected 2 skills, got %d", len(res.Skills))
+	}
+	if res.Skills[0].Skill.Name != "busy" {
+		t.Errorf("expected busy first (higher Total), got %s first", res.Skills[0].Skill.Name)
+	}
+	if res.Skills[1].Skill.Name != "quiet" {
+		t.Errorf("expected quiet second (lower Total), got %s second", res.Skills[1].Skill.Name)
+	}
+}
+
+func TestTier_LastUsed_PicksLatest(t *testing.T) {
+	// Two invocations for same skill; later timestamp should win for LastUsed.
+	early := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
+	late := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 5, 7, 0, 0, 0, 0, time.UTC)
+	res := Tier(TierInput{
+		Skills: []skills.SkillInfo{newSkill("foo", skills.SourceClaudeGlobal)},
+		Invocations: []skills.Invocation{
+			newInv("foo", "model", late),
+			newInv("foo", "user", early), // earlier — should NOT become LastUsed
+		},
+		Window: 90 * 24 * time.Hour,
+		Now:    now,
+	})
+	if !res.Skills[0].LastUsed.Equal(late) {
+		t.Errorf("LastUsed = %v, want %v (latest invocation)", res.Skills[0].LastUsed, late)
+	}
+}
