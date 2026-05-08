@@ -10,7 +10,7 @@ license: MIT
 allowed-tools: Bash
 argument-hint: "[--tool <name>] [--since <duration>] [--limit N] [--json]"
 metadata:
-  version: 0.4.1
+  version: 0.5.0
 ---
 
 # omnisess list
