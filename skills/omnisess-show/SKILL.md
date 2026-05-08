@@ -11,7 +11,7 @@ license: MIT
 allowed-tools: Bash
 argument-hint: "<tool>:<session-id>"
 metadata:
-  version: 0.4.1
+  version: 0.5.0
 ---
 
 # omnisess show
