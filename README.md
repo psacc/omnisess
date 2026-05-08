@@ -106,6 +106,7 @@ claude:5c3f2742  ~/prj/myapp  (process alive, modified 47s ago)
 | `omnisess ps`                 | Live Claude process tree with ancestor lineage (macOS) |
 | `omnisess tui`                | Interactive terminal UI for browsing sessions     |
 | `omnisess version`            | Print the installed omnisess version              |
+| `omnisess skills audit`       | Classify skills by usage (Keep/Borderline/Archive); see [docs/skills-audit.md](docs/skills-audit.md) |
 
 ---
 
