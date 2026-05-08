@@ -142,8 +142,9 @@ See [`docs/process/release.md`](docs/process/release.md) for the release process
 ## Contributing
 
 1. Fork the repository and create a feature branch (`git checkout -b feat/my-change`).
-2. Make your changes and run `make check` (fmt + vet + lint + test) — must pass clean.
-3. Open a pull request against `main`.
+2. Run `make setup` (one-time) — installs git hooks and golangci-lint at the pinned version. Or run `make install-lint` to install/upgrade the linter alone.
+3. Make your changes and run `make check` (fmt + vet + lint + test) — must pass clean.
+4. Open a pull request against `main`.
 
 All source packages under `internal/source/<name>/` must remain isolated (no cross-imports).
 Pure Go only — no CGO.
