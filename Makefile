@@ -1,4 +1,6 @@
-.PHONY: all build test test-integ cover cover-check cover-html lint vet fmt check clean setup pr install smoke tag release bump-skills repo-setup help
+.PHONY: all build test test-integ cover cover-check cover-html lint vet fmt check clean setup install-lint pr install smoke tag release bump-skills repo-setup help
+
+GOLANGCI_LINT_VERSION ?= v2.12.1
 
 # Default: build + vet + lint + test
 all: build vet lint test
@@ -43,10 +45,15 @@ cover-html: cover ## Run tests and open HTML coverage report
 	go tool cover -html=coverage.out -o coverage.html
 	open coverage.html
 
-lint:
+install-lint: ## Install golangci-lint at the pinned version (one-time bootstrap)
+	@echo "Installing golangci-lint $(GOLANGCI_LINT_VERSION)..."
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/$(GOLANGCI_LINT_VERSION)/install.sh \
+		| sh -s -- -b $$(go env GOPATH)/bin $(GOLANGCI_LINT_VERSION)
+	@echo "Installed: $$(golangci-lint version)"
+
+lint: ## Run golangci-lint
 	@command -v golangci-lint >/dev/null 2>&1 || { \
-		echo "golangci-lint not found. Install: https://golangci-lint.run/welcome/install/"; \
-		echo "  brew install golangci-lint"; \
+		echo "golangci-lint not found. Run: make install-lint"; \
 		exit 1; \
 	}
 	golangci-lint run
@@ -136,9 +143,10 @@ clean: ## Remove build artifacts
 help: ## Show this help message
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make \033[36m<target>\033[0m\n\nTargets:\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
-setup: ## Install git hooks (one-time setup)
+setup: ## Install git hooks and golangci-lint (one-time setup)
 	@echo "Installing git hooks..."
 	@bash scripts/install-hooks.sh
+	@$(MAKE) install-lint
 	@echo "Done. Run 'make check' to verify your setup."
 
 repo-setup: ## Apply GitHub repo settings + branch protection (idempotent; use FORCE=1 to overwrite stricter settings)
