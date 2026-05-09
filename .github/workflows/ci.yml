@@ -32,10 +32,3 @@ jobs:
           cache: true
       - name: cover-check
         run: make cover-check
-      - name: Per-function coverage on failure (DEBUG)
-        if: failure()
-        run: |
-          echo "=== per-function coverage (non-100%) ==="
-          go tool cover -func=coverage.out | grep -v "100.0%"
-          echo "=== copilot package raw cover.out (uncovered blocks) ==="
-          grep "internal/source/copilot" coverage.out | awk '$3 == 0' | head -30

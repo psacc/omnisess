@@ -152,6 +152,7 @@ func TestDiscoverVSCodeWorkspaces_Unsupported(t *testing.T) {
 }
 
 func TestDiscoverVSCodeWorkspaces_Missing(t *testing.T) {
+	forceVSCodeOSSupported(t)
 	got, err := discoverVSCodeWorkspaces(t.TempDir())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

@@ -595,6 +595,7 @@ func TestList_DiscoverVSCodeWorkspacesError(t *testing.T) {
 	if os.Getuid() == 0 {
 		t.Skip("running as root, permission test not meaningful")
 	}
+	forceVSCodeOSSupported(t)
 	home, _ := setupFakeHome(t)
 	t.Setenv("HOME", home)
 
