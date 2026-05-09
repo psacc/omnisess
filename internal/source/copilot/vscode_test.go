@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -97,14 +98,15 @@ func createVSCDB(t *testing.T, path, valueJSON string) {
 // vscodeWorkspaceStorageDir
 // ---------------------------------------------------------------------------
 
-// TestVSCodeOSSupported_ProductionPredicate exercises the unstubbed
-// closure body so coverage stays at 100% regardless of GOOS — every other
-// test in this package replaces the closure via forceVSCodeOSSupported,
-// which would otherwise leave the production line uncovered on Linux CI.
-// (On darwin returns true; on Linux/Windows returns false. We don't assert
-// the value — just exercise the line.)
-func TestVSCodeOSSupported_ProductionPredicate(t *testing.T) {
-	_ = vscodeOSSupported()
+// TestVSCodeOSSupportedDefault exercises the production predicate so
+// coverage stays at 100% regardless of GOOS — every other test in this
+// package replaces vscodeOSSupported via forceVSCodeOSSupported, which
+// would otherwise leave vscodeOSSupportedDefault uncovered on Linux CI.
+func TestVSCodeOSSupportedDefault(t *testing.T) {
+	want := runtime.GOOS == "darwin"
+	if got := vscodeOSSupportedDefault(); got != want {
+		t.Errorf("vscodeOSSupportedDefault() = %v, want %v", got, want)
+	}
 }
 
 func TestVSCodeWorkspaceStorageDir_Darwin(t *testing.T) {

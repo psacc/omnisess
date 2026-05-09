@@ -68,7 +68,11 @@ type chatResponseContent struct {
 
 // vscodeOSSupported lets tests force the unsupported-OS branch on platforms
 // where runtime.GOOS is "darwin". Override via vscodeOSSupported = func() bool { return false }.
-var vscodeOSSupported = func() bool { return runtime.GOOS == "darwin" }
+// Indirect through a named function so coverage reports it as its own entry
+// rather than folding it into the package init line.
+var vscodeOSSupported = vscodeOSSupportedDefault
+
+func vscodeOSSupportedDefault() bool { return runtime.GOOS == "darwin" }
 
 // vscodeWorkspaceStorageDir returns the platform-appropriate workspaceStorage path,
 // or "" if unsupported on the current OS.
