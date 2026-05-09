@@ -5,11 +5,14 @@
 //   - events.jsonl       — append-only conversation event log
 //   - vscode.metadata.json — workspace metadata (workspaceFolder = cwd)
 //
-// VS Code workspaceStorage formats (chatSessions/*.jsonl, state.vscdb) are
-// intentionally NOT supported here: agent-mode sessions are not written
-// to those files reliably, and supporting state.vscdb would require a
-// SQLite dependency. The CLI session-state directory is the authoritative
-// local source for Copilot session content.
+// VS Code workspaceStorage formats are also supported on darwin:
+//   - <home>/Library/Application Support/Code/User/workspaceStorage/<hash>/
+//     chatSessions/*.jsonl    — VS Code "classic" chat (each line is a
+//     {"v": {...requests, dates}} snapshot)
+//     state.vscdb             — SQLite ItemTable, key
+//     "interactive.sessions" → JSON array
+//
+// See vscode.go.
 package copilot
 
 import (
@@ -47,51 +50,40 @@ func sessionIDFromDir(sessionDir string) string {
 
 // List returns Copilot sessions ordered by most recent first.
 // Messages are NOT populated.
+//
+// Three subsources are aggregated:
+//  1. ~/.copilot/session-state/<uuid>/                       (CLI)
+//  2. ~/Library/.../workspaceStorage/<hash>/chatSessions/*.jsonl (VS Code)
+//  3. ~/Library/.../workspaceStorage/<hash>/state.vscdb       (VS Code legacy)
 func (s *copilotSource) List(opts source.ListOptions) ([]model.Session, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("list copilot sessions: resolve home: %w", err)
 	}
 
+	var sessions []model.Session
+
+	// --- (1) CLI session-state ---
 	dirs, err := listSessionDirs(home)
 	if err != nil {
 		return nil, fmt.Errorf("list copilot sessions: %w", err)
 	}
-
-	var sessions []model.Session
 	for _, dir := range dirs {
 		ev := eventsPath(dir)
-
-		// UpdatedAt: events.jsonl mtime (the file is append-only).
 		var updatedAt time.Time
 		if info, err := os.Stat(ev); err == nil {
 			updatedAt = info.ModTime()
 		}
-
 		startedAt := peekFirstTimestamp(ev)
 		if startedAt.IsZero() {
 			startedAt = updatedAt
 		}
-
 		cwd := readMetadata(dir)
 		active := detect.IsSessionActive("copilot", ev)
-
-		// Apply filters.
-		if opts.Active && !active {
+		if !sessionPassesFilters(cwd, updatedAt, active, opts) {
 			continue
 		}
-		if opts.Since > 0 && time.Since(updatedAt) > opts.Since {
-			continue
-		}
-		if opts.Project != "" && !strings.Contains(cwd, opts.Project) {
-			continue
-		}
-		if source.MatchesExclude(cwd, opts.ExcludeProjects) {
-			continue
-		}
-
 		preview := detect.Truncate(peekFirstUserMessage(ev), 120)
-
 		sessions = append(sessions, model.Session{
 			ID:        sessionIDFromDir(dir),
 			Tool:      model.ToolCopilot,
@@ -104,6 +96,27 @@ func (s *copilotSource) List(opts source.ListOptions) ([]model.Session, error) {
 		})
 	}
 
+	// --- (2) + (3) VS Code workspaceStorage ---
+	workspaces, err := discoverVSCodeWorkspaces(home)
+	if err != nil {
+		// Treat as warning, not fatal — CLI sessions are still useful.
+		log.Printf("warning: enumerate vscode workspaces: %v", err)
+	}
+	for _, ws := range workspaces {
+		for _, sess := range listChatSessionsInWorkspace(ws) {
+			if !sessionPassesFilters(sess.Project, sess.UpdatedAt, sess.Active, opts) {
+				continue
+			}
+			sessions = append(sessions, sess)
+		}
+		for _, sess := range listVSCDBSessionsInWorkspace(ws) {
+			if !sessionPassesFilters(sess.Project, sess.UpdatedAt, sess.Active, opts) {
+				continue
+			}
+			sessions = append(sessions, sess)
+		}
+	}
+
 	// Sort by UpdatedAt descending.
 	sort.Slice(sessions, func(i, j int) bool {
 		return sessions[i].UpdatedAt.After(sessions[j].UpdatedAt)
@@ -112,12 +125,34 @@ func (s *copilotSource) List(opts source.ListOptions) ([]model.Session, error) {
 	if opts.Limit > 0 && len(sessions) > opts.Limit {
 		sessions = sessions[:opts.Limit]
 	}
-
 	return sessions, nil
 }
 
+// sessionPassesFilters applies the standard ListOptions filters that don't
+// depend on subsource-specific data. Active=true is incompatible with the
+// VS Code subsources (we never mark them active), so callers pass active=false
+// for those — the filter then short-circuits correctly.
+func sessionPassesFilters(project string, updatedAt time.Time, active bool, opts source.ListOptions) bool {
+	if opts.Active && !active {
+		return false
+	}
+	if opts.Since > 0 && time.Since(updatedAt) > opts.Since {
+		return false
+	}
+	if opts.Project != "" && !strings.Contains(project, opts.Project) {
+		return false
+	}
+	if source.MatchesExclude(project, opts.ExcludeProjects) {
+		return false
+	}
+	return true
+}
+
 // Get returns a single Copilot session with full message history.
-// Supports exact and prefix match on sessionID.
+// Supports exact and prefix match on sessionID. Resolution order:
+//  1. CLI session-state (~/.copilot/session-state/<uuid>/)
+//  2. VS Code chatSessions/*.jsonl (file stem or sessionId field)
+//  3. VS Code state.vscdb (sessionId field)
 func (s *copilotSource) Get(sessionID string) (*model.Session, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -128,7 +163,18 @@ func (s *copilotSource) Get(sessionID string) (*model.Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get copilot session %s: %w", sessionID, err)
 	}
+
 	if sessionDir == "" {
+		// Fall back to VS Code subsources.
+		workspaces, _ := discoverVSCodeWorkspaces(home)
+		if sess, msgs, ok := getChatSession(workspaces, sessionID); ok {
+			sess.Messages = msgs
+			return &sess, nil
+		}
+		if sess, msgs, ok := getVSCDBSession(workspaces, sessionID); ok {
+			sess.Messages = msgs
+			return &sess, nil
+		}
 		return nil, nil
 	}
 
@@ -221,7 +267,8 @@ func resolveSessionDir(homeDir, sessionID string) (string, string, error) {
 }
 
 // Search returns Copilot sessions whose message content contains the query
-// (case-insensitive substring match).
+// (case-insensitive substring match). Walks the same three subsources as
+// List(): CLI session-state, VS Code chatSessions, VS Code state.vscdb.
 func (s *copilotSource) Search(query string, opts source.ListOptions) ([]model.SearchResult, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -234,14 +281,13 @@ func (s *copilotSource) Search(query string, opts source.ListOptions) ([]model.S
 	}
 
 	queryLower := strings.ToLower(query)
-	root := sessionStateDir(home)
+	cliRoot := sessionStateDir(home)
+	workspaces, _ := discoverVSCodeWorkspaces(home)
 
 	var results []model.SearchResult
 	for _, sess := range sessions {
-		ev := eventsPath(filepath.Join(root, sess.ID))
-		messages, err := parseEvents(ev)
-		if err != nil {
-			log.Printf("warning: parsing copilot session %s for search: %v", sess.ID, err)
+		messages := loadMessagesForSearch(sess.ID, cliRoot, workspaces)
+		if messages == nil {
 			continue
 		}
 
@@ -269,6 +315,28 @@ func (s *copilotSource) Search(query string, opts source.ListOptions) ([]model.S
 	}
 
 	return results, nil
+}
+
+// loadMessagesForSearch resolves the messages for a session ID across all
+// three subsources. Returns nil if the session can't be found anywhere
+// (caller skips it). A non-nil empty slice means "found, but no messages".
+func loadMessagesForSearch(sessID, cliRoot string, workspaces []vsWorkspace) []model.Message {
+	cliEv := filepath.Join(cliRoot, sessID, "events.jsonl")
+	if _, err := os.Stat(cliEv); err == nil {
+		msgs, err := parseEvents(cliEv)
+		if err != nil {
+			log.Printf("warning: parsing copilot session %s for search: %v", sessID, err)
+			return nil
+		}
+		return msgs
+	}
+	if _, msgs, ok := getChatSession(workspaces, sessID); ok {
+		return msgs
+	}
+	if _, msgs, ok := getVSCDBSession(workspaces, sessID); ok {
+		return msgs
+	}
+	return nil
 }
 
 // extractSnippet returns a ~targetLen character snippet centred on a match.

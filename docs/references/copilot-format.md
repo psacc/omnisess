@@ -1,4 +1,4 @@
-# GitHub Copilot CLI — Local Data Format
+# GitHub Copilot — Local Data Format
 
 ## Paths
 
@@ -37,10 +37,42 @@ one message.
 
 Only `workspaceFolder` is consumed.
 
-## Out of scope
+## VS Code workspaceStorage (darwin)
 
-VS Code workspaceStorage formats — `chatSessions/*.jsonl` and
-`state.vscdb` (`interactive.sessions` key) — are intentionally NOT supported.
-Agent-mode sessions are not written to those stores reliably, and supporting
-`state.vscdb` would require a SQLite dependency for negligible coverage gain.
-The CLI session-state directory is the authoritative local source.
+Two additional locations are also read on darwin:
+
+```
+~/Library/Application Support/Code/User/workspaceStorage/<hash>/
+  workspace.json          # cwd: {"folder":"file:///..."} or {"workspace":...}
+  chatSessions/*.jsonl    # VS Code "classic" chat — one session per file
+  state.vscdb             # legacy SQLite store (ItemTable.interactive.sessions)
+```
+
+### chatSessions/*.jsonl
+
+Each file holds one or more `{"v": {...}}` snapshots of the same chat
+session. The latest line with a non-empty `requests` array is canonical.
+
+```json
+{"v":{"sessionId":"…","creationDate":1700000000000,"lastMessageDate":1700000005000,"requests":[{"message":{"text":"…"},"response":[{"kind":"markdownContent","content":{"value":"…"}}]}]}}
+```
+
+- Dates are millisecond epochs.
+- `response` parts can be `markdownContent`, `markdownVuln`, or a bare
+  `{"value":"…"}`. All three are concatenated when reconstructing
+  assistant messages.
+
+### state.vscdb
+
+Pure-Go (`modernc.org/sqlite`) read of the `ItemTable` row keyed
+`interactive.sessions`. Its `value` is a JSON array of session objects
+sharing the same shape as `chatSessions` lines (no `v` wrapper).
+
+### Notes
+
+- Agent-mode sessions aren't always present in these VS Code stores; the
+  CLI session-state remains the most reliable source.
+- The session ID for a `chatSessions` file is its `sessionId` field if set,
+  otherwise the `.jsonl` stem.
+- VS Code subsources currently ship for darwin only; Linux / Windows paths
+  are a follow-up.

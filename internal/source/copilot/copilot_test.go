@@ -513,6 +513,183 @@ func TestSearch_ParseEventsErrorSkips(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// List/Get/Search across CLI + VS Code subsources
+// ---------------------------------------------------------------------------
+
+// setupCombinedHome layers a CLI session-state fixture and a VS Code workspace
+// (chatSessions + state.vscdb) under the same HOME.
+func setupCombinedHome(t *testing.T) string {
+	t.Helper()
+	home, _ := setupFakeHome(t)
+	storage := filepath.Join(home, darwinVSCodeWorkspaceStorageRel, "ws-1")
+	if err := os.MkdirAll(filepath.Join(storage, "chatSessions"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(storage, "workspace.json"),
+		[]byte(`{"folder":"file:///Users/foo/myapp"}`),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+	chatLine := `{"v":{"sessionId":"` + chatSessionID +
+		`","creationDate":1700000000000,"lastMessageDate":1700000005000,` +
+		`"requests":[{"message":{"text":"chatSessions hi"},"response":[{"kind":"markdownContent","content":{"value":"chatSessions reply about AGENTS.md"}}]}]}}`
+	if err := os.WriteFile(
+		filepath.Join(storage, "chatSessions", chatSessionID+".jsonl"),
+		[]byte(chatLine+"\n"),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+	vscdbValue := `[{"sessionId":"` + vscdbSessionID +
+		`","creationDate":1700000000000,"lastMessageDate":1700000010000,` +
+		`"requests":[{"message":{"text":"vscdb prompt"},"response":[{"kind":"markdownContent","content":{"value":"vscdb reply about AGENTS.md"}}]}]}]`
+	createVSCDB(t, filepath.Join(storage, "state.vscdb"), vscdbValue)
+	return home
+}
+
+func TestList_AggregatesAllSubsources(t *testing.T) {
+	home := setupCombinedHome(t)
+	t.Setenv("HOME", home)
+
+	s := &copilotSource{}
+	sessions, err := s.List(source.ListOptions{})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	// 2 CLI fixtures + 1 chatSessions + 1 vscdb = 4
+	if len(sessions) != 4 {
+		t.Fatalf("got %d sessions, want 4", len(sessions))
+	}
+	have := map[string]bool{}
+	for _, sess := range sessions {
+		have[sess.ID] = true
+	}
+	if !have[chatSessionID] {
+		t.Error("chatSessions session not present")
+	}
+	if !have[vscdbSessionID] {
+		t.Error("vscdb session not present")
+	}
+}
+
+func TestList_VSCodeFiltersAreApplied(t *testing.T) {
+	home := setupCombinedHome(t)
+	t.Setenv("HOME", home)
+
+	s := &copilotSource{}
+	// Project filter that no fixture matches → 0 sessions even though
+	// CLI + VS Code fixtures are present.
+	sessions, err := s.List(source.ListOptions{Project: "no-match-project-xyz"})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(sessions) != 0 {
+		t.Errorf("expected 0 sessions, got %d", len(sessions))
+	}
+}
+
+func TestList_DiscoverVSCodeWorkspacesError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("running as root, permission test not meaningful")
+	}
+	home, _ := setupFakeHome(t)
+	t.Setenv("HOME", home)
+
+	// Make workspaceStorage unreadable so discoverVSCodeWorkspaces errors,
+	// but session-state remains OK so List() still succeeds (warning only).
+	parent := filepath.Join(home, "Library/Application Support/Code/User")
+	if err := os.MkdirAll(parent, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	root := filepath.Join(parent, "workspaceStorage")
+	if err := os.Mkdir(root, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(root, 0o755) //nolint:errcheck
+
+	s := &copilotSource{}
+	sessions, err := s.List(source.ListOptions{})
+	if err != nil {
+		t.Fatalf("List should swallow workspace-discovery errors, got: %v", err)
+	}
+	// Two CLI fixtures still come through.
+	if len(sessions) != 2 {
+		t.Errorf("got %d, want 2 (CLI fixtures only)", len(sessions))
+	}
+}
+
+func TestGet_FallsThroughToChatSessions(t *testing.T) {
+	home := setupCombinedHome(t)
+	t.Setenv("HOME", home)
+
+	s := &copilotSource{}
+	sess, err := s.Get(chatSessionID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if sess == nil {
+		t.Fatal("expected session, got nil")
+	}
+	if sess.ID != chatSessionID {
+		t.Errorf("ID = %q", sess.ID)
+	}
+	if len(sess.Messages) == 0 {
+		t.Error("expected messages")
+	}
+}
+
+func TestGet_FallsThroughToVSCDB(t *testing.T) {
+	home := setupCombinedHome(t)
+	t.Setenv("HOME", home)
+
+	s := &copilotSource{}
+	sess, err := s.Get(vscdbSessionID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if sess == nil {
+		t.Fatal("expected session")
+	}
+	if sess.ID != vscdbSessionID {
+		t.Errorf("ID = %q", sess.ID)
+	}
+}
+
+func TestSearch_HitsAcrossSubsources(t *testing.T) {
+	home := setupCombinedHome(t)
+	t.Setenv("HOME", home)
+
+	s := &copilotSource{}
+	results, err := s.Search("AGENTS.md", source.ListOptions{})
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	srcIDs := map[string]bool{}
+	for _, r := range results {
+		srcIDs[r.Session.ID] = true
+	}
+	if !srcIDs[chatSessionID] {
+		t.Error("expected chatSessions hit")
+	}
+	if !srcIDs[vscdbSessionID] {
+		t.Error("expected vscdb hit")
+	}
+}
+
+func TestLoadMessagesForSearch_MissReturnsNil(t *testing.T) {
+	home := setupCombinedHome(t)
+	t.Setenv("HOME", home)
+
+	workspaces, _ := discoverVSCodeWorkspaces(home)
+	got := loadMessagesForSearch("session-that-does-not-exist", sessionStateDir(home), workspaces)
+	if got != nil {
+		t.Errorf("expected nil for unresolvable id, got %v", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // extractSnippet — branches
 // ---------------------------------------------------------------------------
 
