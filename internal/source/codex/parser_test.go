@@ -333,6 +333,18 @@ func TestList(t *testing.T) {
 			t.Errorf("expected 0 sessions with very short Since, got %d", len(filtered))
 		}
 	})
+
+	t.Run("OnDate filter excludes sessions on different day", func(t *testing.T) {
+		filtered, err := s.List(source.ListOptions{
+			OnDate: time.Date(1999, 1, 1, 0, 0, 0, 0, time.Local),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(filtered) != 0 {
+			t.Errorf("expected 0 sessions with OnDate=1999-01-01, got %d", len(filtered))
+		}
+	})
 }
 
 // ---------------------------------------------------------------------------

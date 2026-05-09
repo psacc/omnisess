@@ -677,6 +677,19 @@ func TestList(t *testing.T) {
 		}
 	})
 
+	t.Run("OnDate filter excludes sessions on different day", func(t *testing.T) {
+		// 1999-01-01 will not match any fixture session.
+		sessions, err := s.List(source.ListOptions{
+			OnDate: time.Date(1999, 1, 1, 0, 0, 0, 0, time.Local),
+		})
+		if err != nil {
+			t.Fatalf("List() error: %v", err)
+		}
+		if len(sessions) != 0 {
+			t.Errorf("expected 0 sessions with OnDate=1999-01-01, got %d", len(sessions))
+		}
+	})
+
 	t.Run("Project filter", func(t *testing.T) {
 		// Filter by a project that doesn't match anything
 		sessions, err := s.List(source.ListOptions{Project: "nonexistent-project-xyz"})
@@ -899,6 +912,38 @@ func TestList_OrphanWithSinceFilter(t *testing.T) {
 	}
 	if len(sessions) != 0 {
 		t.Errorf("expected 0 sessions with 1ns Since filter, got %d", len(sessions))
+	}
+}
+
+func TestList_OrphanWithOnDateFilter(t *testing.T) {
+	// Orphan filtered by OnDate that doesn't match its mtime.
+	home := t.TempDir()
+	projDir := filepath.Join(home, ".claude", "projects", "-tmp-orphanproject")
+	if err := os.MkdirAll(projDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".claude", "history.jsonl"), []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sessData, err := os.ReadFile("testdata/session_simple.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(projDir, "orphan04-1234-5678-9abc-def012345678.jsonl"), sessData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	setHome(t, home)
+	s := &claudeSource{}
+
+	sessions, err := s.List(source.ListOptions{
+		OnDate: time.Date(1999, 1, 1, 0, 0, 0, 0, time.Local),
+	})
+	if err != nil {
+		t.Fatalf("List() error: %v", err)
+	}
+	if len(sessions) != 0 {
+		t.Errorf("expected 0 sessions with OnDate=1999-01-01, got %d", len(sessions))
 	}
 }
 
