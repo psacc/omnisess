@@ -520,6 +520,7 @@ func TestSearch_ParseEventsErrorSkips(t *testing.T) {
 // (chatSessions + state.vscdb) under the same HOME.
 func setupCombinedHome(t *testing.T) string {
 	t.Helper()
+	forceVSCodeOSSupported(t)
 	home, _ := setupFakeHome(t)
 	storage := filepath.Join(home, darwinVSCodeWorkspaceStorageRel, "ws-1")
 	if err := os.MkdirAll(filepath.Join(storage, "chatSessions"), 0o755); err != nil {

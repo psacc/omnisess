@@ -22,10 +22,21 @@ const (
 	vscdbSessionID = "vscdb-cccc-1111-2222-3333-444455556666"
 )
 
+// forceVSCodeOSSupported makes vscodeOSSupported return true for the test's
+// duration. Tests that exercise darwin-only paths must call this so they pass
+// on Linux CI; the production predicate is `runtime.GOOS == "darwin"`.
+func forceVSCodeOSSupported(t *testing.T) {
+	t.Helper()
+	prev := vscodeOSSupported
+	vscodeOSSupported = func() bool { return true }
+	t.Cleanup(func() { vscodeOSSupported = prev })
+}
+
 // setupFakeVSCodeHome builds a temp HOME with one populated VS Code workspace.
 // Returns the home path and the workspace storage dir for inspection.
 func setupFakeVSCodeHome(t *testing.T) (homeDir, storageDir string) {
 	t.Helper()
+	forceVSCodeOSSupported(t)
 	home := t.TempDir()
 	storage := filepath.Join(home, darwinVSCodeWorkspaceStorageRel, "ws-1")
 	if err := os.MkdirAll(filepath.Join(storage, "chatSessions"), 0o755); err != nil {
@@ -142,6 +153,7 @@ func TestDiscoverVSCodeWorkspaces_ReadDirError(t *testing.T) {
 	if os.Getuid() == 0 {
 		t.Skip("running as root, permission test not meaningful")
 	}
+	forceVSCodeOSSupported(t)
 	home := t.TempDir()
 	parent := filepath.Join(home, "Library/Application Support/Code/User")
 	if err := os.MkdirAll(parent, 0o755); err != nil {
