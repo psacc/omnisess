@@ -310,6 +310,9 @@ func matchesFilter(sess model.Session, opts source.ListOptions, cutoff time.Time
 	if !cutoff.IsZero() && sess.UpdatedAt.Before(cutoff) {
 		return false
 	}
+	if !source.MatchesDate(sess.UpdatedAt, opts.OnDate) {
+		return false
+	}
 	if opts.Project != "" && !strings.Contains(strings.ToLower(sess.Project), strings.ToLower(opts.Project)) {
 		return false
 	}

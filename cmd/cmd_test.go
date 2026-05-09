@@ -194,6 +194,7 @@ func resetFlags() {
 	flagJSON = false
 	flagTool = ""
 	flagSince = ""
+	flagDate = ""
 	flagLimit = 0
 	flagProject = ""
 }
@@ -310,6 +311,48 @@ func TestGetListOptions_WithSince(t *testing.T) {
 	opts := getListOptions()
 	if opts.Since != 24*time.Hour {
 		t.Errorf("Since = %v, want 24h", opts.Since)
+	}
+}
+
+func TestGetListOptions_WithDate(t *testing.T) {
+	resetFlags()
+	flagDate = "2026-04-22"
+	opts := getListOptions()
+	if opts.OnDate.IsZero() {
+		t.Fatal("OnDate should be set")
+	}
+	y, m, d := opts.OnDate.Date()
+	if y != 2026 || m != time.April || d != 22 {
+		t.Errorf("OnDate = %v, want 2026-04-22", opts.OnDate)
+	}
+	// Parsed in time.Local — verify the location matches.
+	if opts.OnDate.Location() != time.Local {
+		t.Errorf("OnDate.Location() = %v, want Local", opts.OnDate.Location())
+	}
+}
+
+// TestGetListOptions_InvalidDate_Subprocess covers the os.Exit(1) path
+// triggered when flagDate is malformed.
+func TestGetListOptions_InvalidDate_Subprocess(t *testing.T) {
+	if os.Getenv("TEST_SUBPROCESS_INVALID_DATE") == "1" {
+		resetFlags()
+		flagDate = "not-a-date"
+		_ = getListOptions()
+		return
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run=TestGetListOptions_InvalidDate_Subprocess")
+	cmd.Env = append(os.Environ(), "TEST_SUBPROCESS_INVALID_DATE=1")
+	err := cmd.Run()
+	if err == nil {
+		t.Fatal("expected subprocess to exit non-zero, but it succeeded")
+	}
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("expected ExitError, got %T: %v", err, err)
+	}
+	if exitErr.ExitCode() != 1 {
+		t.Errorf("exit code = %d, want 1", exitErr.ExitCode())
 	}
 }
 

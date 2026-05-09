@@ -246,6 +246,9 @@ func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 		if opts.Since > 0 && time.Since(updatedAt) > opts.Since {
 			continue
 		}
+		if !source.MatchesDate(updatedAt, opts.OnDate) {
+			continue
+		}
 		if opts.Project != "" && !strings.Contains(entry.Project, opts.Project) {
 			continue
 		}
@@ -293,6 +296,9 @@ func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 			continue
 		}
 		if opts.Since > 0 && time.Since(updatedAt) > opts.Since {
+			continue
+		}
+		if !source.MatchesDate(updatedAt, opts.OnDate) {
 			continue
 		}
 		if opts.Project != "" && !strings.Contains(orphan.Project, opts.Project) {

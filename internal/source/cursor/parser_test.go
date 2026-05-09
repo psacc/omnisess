@@ -974,6 +974,20 @@ func TestMatchesFilter(t *testing.T) {
 			cutoff: time.Time{},
 			want:   false,
 		},
+		{
+			name:   "OnDate: matching day passes",
+			sess:   model.Session{UpdatedAt: now},
+			opts:   source.ListOptions{OnDate: time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())},
+			cutoff: time.Time{},
+			want:   true,
+		},
+		{
+			name:   "OnDate: different day filtered out",
+			sess:   model.Session{UpdatedAt: now},
+			opts:   source.ListOptions{OnDate: time.Date(1999, 1, 1, 0, 0, 0, 0, now.Location())},
+			cutoff: time.Time{},
+			want:   false,
+		},
 	}
 
 	for _, tt := range tests {

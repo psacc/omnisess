@@ -73,6 +73,9 @@ TOOL       ID              PROJECT                      MESSAGES  LAST ACTIVE
 claude     5c3f2742        ~/prj/myapp                  42        2h ago
 cursor     a1b2c3d4        ~/prj/api                    18        5h ago
 
+# Sessions from a specific calendar day (local time)
+$ omnisess list --date 2026-04-22
+
 # Search across all sources
 $ omnisess search "database migration"
 claude:5c3f2742  ~/prj/myapp  "...ran the database migration script..."

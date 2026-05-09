@@ -22,6 +22,7 @@ var (
 	flagJSON            bool
 	flagTool            string
 	flagSince           string
+	flagDate            string
 	flagLimit           int
 	flagProject         string
 	flagExcludeProjects []string
@@ -43,6 +44,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&flagJSON, "json", false, "Output as JSON")
 	rootCmd.PersistentFlags().StringVar(&flagTool, "tool", "", "Filter by tool (claude, cursor, codex, gemini)")
 	rootCmd.PersistentFlags().StringVar(&flagSince, "since", "", "Only sessions updated within duration (e.g., 24h, 7d, 2w)")
+	rootCmd.PersistentFlags().StringVar(&flagDate, "date", "", "Only sessions updated on this calendar day (YYYY-MM-DD, local time). Combines with --since by intersection.")
 	rootCmd.PersistentFlags().IntVar(&flagLimit, "limit", 0, "Max results (0 = unlimited)")
 	rootCmd.PersistentFlags().StringVar(&flagProject, "project", "", "Filter by project path substring")
 	rootCmd.PersistentFlags().StringSliceVar(&flagExcludeProjects, "exclude-project", nil,
@@ -75,6 +77,14 @@ func getListOptions() source.ListOptions {
 			os.Exit(1)
 		}
 		opts.Since = d
+	}
+	if flagDate != "" {
+		d, err := time.ParseInLocation("2006-01-02", flagDate, time.Local)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Invalid --date value: %s (expected YYYY-MM-DD)\n", err)
+			os.Exit(1)
+		}
+		opts.OnDate = d
 	}
 
 	// Merge --exclude-project flag with OMNISESS_EXCLUDE_PROJECTS env var.
