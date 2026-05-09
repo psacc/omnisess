@@ -186,6 +186,7 @@ func TestDiscoverVSCodeWorkspaces_HappyPath(t *testing.T) {
 }
 
 func TestDiscoverVSCodeWorkspaces_SkipsNonDirsAndMissingWorkspaceJSON(t *testing.T) {
+	forceVSCodeOSSupported(t)
 	home := t.TempDir()
 	root := filepath.Join(home, darwinVSCodeWorkspaceStorageRel)
 	if err := os.MkdirAll(root, 0o755); err != nil {
