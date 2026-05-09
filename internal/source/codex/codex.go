@@ -169,6 +169,9 @@ func (s *codexSource) List(opts source.ListOptions) ([]model.Session, error) {
 		if opts.Since > 0 && time.Since(updatedAt) > opts.Since {
 			continue
 		}
+		if !source.MatchesDate(updatedAt, opts.OnDate) {
+			continue
+		}
 		if opts.Project != "" && !strings.Contains(cwd, opts.Project) {
 			continue
 		}

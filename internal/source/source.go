@@ -10,6 +10,7 @@ import (
 // ListOptions controls filtering for List and Search operations.
 type ListOptions struct {
 	Since           time.Duration // only sessions updated within this duration
+	OnDate          time.Time     // only sessions updated on this calendar day (in OnDate's location); zero = no filter
 	Limit           int           // max results (0 = unlimited)
 	Project         string        // filter by project path substring (include)
 	ExcludeProjects []string      // exclude sessions matching any of these project substrings
@@ -24,6 +25,22 @@ func MatchesExclude(project string, excludes []string) bool {
 		}
 	}
 	return false
+}
+
+// MatchesDate returns true if onDate is unset (zero) OR ts falls on the same
+// calendar day as onDate, evaluated in onDate's location.
+//
+// This is the predicate used by the --date flag. It's a calendar-day match,
+// not a duration-from-now match — useful for "show me sessions from
+// 2026-04-22" without dealing with rolling windows.
+func MatchesDate(ts, onDate time.Time) bool {
+	if onDate.IsZero() {
+		return true
+	}
+	loc := onDate.Location()
+	y1, m1, d1 := ts.In(loc).Date()
+	y2, m2, d2 := onDate.Date()
+	return y1 == y2 && m1 == m2 && d1 == d2
 }
 
 // Source is the interface that each tool's session parser implements.
