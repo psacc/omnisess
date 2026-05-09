@@ -6,7 +6,7 @@
 ## Data Flow
 
 ```
-Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.gemini/)
+Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.copilot/, ~/.gemini/)
         │
         ▼
   internal/source/*     (per-tool parsers, implement Source interface)
@@ -34,7 +34,8 @@ Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.gemini/)
 - **internal/source/registry.go** — Global source registry. Sources self-register via `init()`.
 - **internal/source/claude/** — Parses `~/.claude/history.jsonl` + session JSONL files.
 - **internal/source/cursor/** — Reads `ai-tracking.db` for metadata, `agent-transcripts/*.txt` for content.
-- **internal/source/codex/** — Stub. Returns empty results.
+- **internal/source/codex/** — Parses `~/.codex/history.jsonl` + session JSONL files.
+- **internal/source/copilot/** — Parses `~/.copilot/session-state/<uuid>/{events.jsonl,vscode.metadata.json}` for GitHub Copilot CLI sessions.
 - **internal/source/gemini/** — Stub. Returns empty results.
 - **internal/detect/process.go** — `IsProcessRunning(name)` and `IsFileRecentlyModified(path, threshold)`.
 - **internal/procsnap/** — Live-process correlation for Claude sessions (macOS only). `Enumerate()` scans `~/.claude/sessions/<PID>.json`, filters alive PIDs, walks ancestors via `ps`. Returns `ErrUnsupported` off darwin.

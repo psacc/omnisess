@@ -5,10 +5,11 @@ import "time"
 type Tool string
 
 const (
-	ToolClaude Tool = "claude"
-	ToolCodex  Tool = "codex"
-	ToolCursor Tool = "cursor"
-	ToolGemini Tool = "gemini"
+	ToolClaude  Tool = "claude"
+	ToolCodex   Tool = "codex"
+	ToolCopilot Tool = "copilot"
+	ToolCursor  Tool = "cursor"
+	ToolGemini  Tool = "gemini"
 )
 
 type Role string

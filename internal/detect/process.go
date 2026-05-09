@@ -32,6 +32,11 @@ func IsToolRunning(toolName string) bool {
 	case "codex":
 		cmd := exec.Command("pgrep", "-x", "codex")
 		return cmd.Run() == nil
+	case "copilot":
+		// Match either the GitHub Copilot CLI binary (`copilot`) or the
+		// `gh copilot` extension. -f matches against the full command line.
+		cmd := exec.Command("pgrep", "-f", "copilot")
+		return cmd.Run() == nil
 	case "gemini":
 		cmd := exec.Command("pgrep", "-f", "gemini")
 		return cmd.Run() == nil

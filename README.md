@@ -89,12 +89,13 @@ claude:5c3f2742  ~/prj/myapp  (process alive, modified 47s ago)
 
 ## Supported sources
 
-| Source      | Status |
-|-------------|--------|
-| Claude Code | Full   |
-| Cursor      | Full   |
-| Codex       | Stub   |
-| Gemini      | Stub   |
+| Source              | Status |
+|---------------------|--------|
+| Claude Code         | Full   |
+| Cursor              | Full   |
+| Codex               | Stub   |
+| GitHub Copilot CLI  | Full   |
+| Gemini              | Stub   |
 
 ---
 

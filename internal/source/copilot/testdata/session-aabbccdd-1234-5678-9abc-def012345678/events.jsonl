@@ -1,0 +1,7 @@
+{"type":"user.message","timestamp":"2026-04-14T08:10:12.453Z","data":{"content":"compare AGENTS.md with CLAUDE.md"}}
+{"type":"assistant.message","timestamp":"2026-04-14T08:10:14.021Z","data":{"content":"Both files define agent behavior."}}
+{"type":"assistant.message","timestamp":"2026-04-14T08:10:14.221Z","data":{"content":" AGENTS.md is more concise."}}
+{"type":"tool.execution_start","timestamp":"2026-04-14T08:10:15.000Z","data":{"tool":"read"}}
+{"type":"tool.execution_complete","timestamp":"2026-04-14T08:10:15.500Z","data":{"tool":"read"}}
+{"type":"user.message","timestamp":"2026-04-14T08:10:30.000Z","data":{"content":"what are the differences"}}
+{"type":"assistant.message","timestamp":"2026-04-14T08:10:32.000Z","data":{"content":"AGENTS.md covers multi-agent orchestration."}}
