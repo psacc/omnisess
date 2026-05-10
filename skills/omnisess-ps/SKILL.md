@@ -14,7 +14,7 @@ license: MIT
 allowed-tools: Bash
 argument-hint: ""
 metadata:
-  version: 0.5.0
+  version: 0.6.0
 ---
 
 # omnisess ps
