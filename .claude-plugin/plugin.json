@@ -1,6 +1,6 @@
 {
   "name": "omnisess",
-  "description": "Aggregate AI coding sessions across Claude Code, Cursor, Codex, and Gemini",
+  "description": "Aggregate AI coding sessions across Claude Code, Cursor, Codex, GitHub Copilot CLI, and Gemini",
   "author": "psacc",
   "license": "MIT",
   "repository": {
@@ -12,6 +12,7 @@
     "claude",
     "cursor",
     "codex",
+    "copilot",
     "gemini",
     "ai-tools",
     "search"
