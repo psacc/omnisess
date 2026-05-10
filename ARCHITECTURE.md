@@ -6,7 +6,8 @@
 ## Data Flow
 
 ```
-Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.copilot/, ~/.gemini/)
+Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.copilot/, ~/.gemini/
+                  + darwin only: ~/Library/Application Support/Code/User/workspaceStorage/)
         │
         ▼
   internal/source/*     (per-tool parsers, implement Source interface)
@@ -15,7 +16,7 @@ Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.copilot/, ~/.gemini/)
   internal/model/       (unified Session, Message types)
         │
         ▼
-  cmd/*                 (Cobra commands: list, search, show, active)
+  cmd/*                 (Cobra commands: list, search, show, active, ps, tui, skills audit, version)
         │
         ▼
   internal/output/      (table or JSON rendering)
