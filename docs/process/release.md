@@ -73,3 +73,9 @@ While the version is `v0.x.y`, minor bumps may include breaking changes — this
 | Version | Date | Notes |
 |---|---|---|
 | v0.1.0 | 2026-02-24 | First release: working Claude and Cursor sources, public module, Claude Code plugin |
+| v0.2.0 | 2026-02-25 | (backfill) Early plugin / source iterations |
+| v0.3.0 | 2026-03-14 | (backfill) — see GitHub release notes |
+| v0.3.1 | 2026-03-18 | SKILL.md frontmatter fix for skills.sh publishing; .gitignore expansion |
+| v0.4.0 | 2026-04-20 | `omnisess ps` (macOS) — live Claude process tree with ancestor lineage; procsnap package |
+| v0.4.1 | 2026-04-20 | `--version` flag, `ps` registered in plugin.json, automated release SKILL bumps |
+| v0.5.0 | 2026-05-08 | `omnisess skills audit`; coverage gate raised to 100%; ci pin golangci-lint v2.12.1 |
