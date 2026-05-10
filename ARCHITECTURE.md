@@ -23,12 +23,16 @@ Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.copilot/, ~/.gemini/)
 
 ## Package Map
 
-- **cmd/root.go** — Cobra root command. Global flags: `--json`, `--tool`, `--since`, `--limit`. Initializes source registry.
+- **cmd/root.go** — Cobra root command. Global flags: `--json`, `--tool`, `--since`, `--date`, `--limit`, `--project`, `--exclude-project` (also `OMNISESS_EXCLUDE_PROJECTS` env var). Initializes source registry.
 - **cmd/list.go** — Aggregates `Source.List()` from all sources, sorts by `UpdatedAt` desc, renders table.
 - **cmd/search.go** — Calls `Source.Search()` in parallel via errgroup, merges results, renders with snippets.
 - **cmd/show.go** — Parses `tool:id` argument, calls `Source.Get()`, renders full conversation.
 - **cmd/active.go** — Calls `Source.List()` with `Active: true` filter.
 - **cmd/ps.go** — `omnisess ps`: merged ancestor tree of live Claude sessions (macOS only). Renders text tree or JSON via `--json`.
+- **cmd/tui.go** — Interactive terminal UI for browsing sessions.
+- **cmd/version.go** — `omnisess version` / `omnisess --version`: prints the installed module version.
+- **cmd/skills.go** — `omnisess skills` parent command (groups skills sub-commands).
+- **cmd/skills_audit.go** — `omnisess skills audit`: classifies Claude Code skills by usage (Keep / Borderline / Archive). See `docs/skills-audit.md`.
 - **internal/model/session.go** — Pure data types. No dependencies.
 - **internal/source/source.go** — `Source` interface: `Name()`, `List()`, `Get()`, `Search()`.
 - **internal/source/registry.go** — Global source registry. Sources self-register via `init()`.

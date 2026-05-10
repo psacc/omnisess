@@ -1,6 +1,6 @@
 # omnisess
 
-Aggregate AI coding sessions across Claude Code, Cursor, Codex, and Gemini — search, list, and detect active sessions from one place.
+Aggregate AI coding sessions across Claude Code, Cursor, Codex, GitHub Copilot CLI, and Gemini — search, list, and detect active sessions from one place.
 
 [![CI](https://github.com/psacc/omnisess/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/psacc/omnisess/actions/workflows/ci.yml)
 
@@ -49,7 +49,7 @@ In Claude Code, run:
 
 ### Usage
 
-Once installed, six slash commands are available:
+Once installed, seven slash commands are available:
 
 | Command | Description | Example |
 |---|---|---|
@@ -57,8 +57,9 @@ Once installed, six slash commands are available:
 | `/omnisess:search` | Full-text search across sessions | `/omnisess:search "database migration"` |
 | `/omnisess:active` | Show currently running sessions | `/omnisess:active` |
 | `/omnisess:show` | Show full detail for a session | `/omnisess:show claude:5c3f2742` |
-| `/omnisess:recap` | Structured markdown briefing of sessions for a time window | `/omnisess:recap --since 24h` |
+| `/omnisess:recap` | Structured markdown briefing of sessions for a time window | `/omnisess:recap today` |
 | `/omnisess:ps` | Live Claude process tree with ancestor lineage (macOS) | `/omnisess:ps` |
+| `/omnisess:skills-audit` | Classify Claude Code skills by usage (Keep / Borderline / Archive) | `/omnisess:skills-audit --window 90d` |
 
 Each command checks for the `omnisess` binary at invocation time and prints clear install instructions if it is not found.
 
@@ -93,7 +94,7 @@ claude:5c3f2742  ~/prj/myapp  (process alive, modified 47s ago)
 |---------------------|--------|
 | Claude Code         | Full   |
 | Cursor              | Full   |
-| Codex               | Stub   |
+| Codex               | Full   |
 | GitHub Copilot CLI  | Full   |
 | Gemini              | Stub   |
 
@@ -111,6 +112,20 @@ claude:5c3f2742  ~/prj/myapp  (process alive, modified 47s ago)
 | `omnisess tui`                | Interactive terminal UI for browsing sessions     |
 | `omnisess version`            | Print the installed omnisess version              |
 | `omnisess skills audit`       | Classify skills by usage (Keep/Borderline/Archive); see [docs/skills-audit.md](docs/skills-audit.md) |
+
+### Global flags
+
+These flags are accepted by every subcommand:
+
+| Flag | Description |
+|---|---|
+| `--json` | Output as JSON instead of a table |
+| `--tool <name>` | Filter by source (`claude`, `cursor`, `codex`, `copilot`, `gemini`) |
+| `--since <duration>` | Only sessions updated within duration (Go duration, plus `Nd` for days, `Nw` for weeks) |
+| `--date YYYY-MM-DD` | Only sessions updated on this calendar day (local time). Combines with `--since` by intersection |
+| `--limit N` | Max results (`0` = unlimited) |
+| `--project <substring>` | Filter by project path substring |
+| `--exclude-project <substring>` | Exclude project path substring (repeatable; also via `OMNISESS_EXCLUDE_PROJECTS` env var, comma-separated) |
 
 ---
 

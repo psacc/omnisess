@@ -1,7 +1,7 @@
 ---
 name: omnisess
 description: |
-  Aggregate AI coding sessions across Claude Code, Cursor, Codex, and Gemini.
+  Aggregate AI coding sessions across Claude Code, Cursor, Codex, GitHub Copilot CLI, and Gemini.
   Search, list, recap, and detect active sessions from one place.
   Includes skills for listing sessions, full-text search, active session detection,
   session detail view, and structured recap/briefing.
@@ -14,7 +14,7 @@ metadata:
 
 # omnisess
 
-Aggregate AI coding sessions across Claude Code, Cursor, Codex, and Gemini — search, list, and detect active sessions from one place.
+Aggregate AI coding sessions across Claude Code, Cursor, Codex, GitHub Copilot CLI, and Gemini — search, list, and detect active sessions from one place.
 
 ## Prerequisites
 
@@ -34,6 +34,7 @@ go install github.com/psacc/omnisess@latest
 | `omnisess-ps` | Process tree of live Claude sessions with ancestor lineage (macOS) |
 | `omnisess-show` | Show full detail for a single session by ID |
 | `omnisess-recap` | Structured markdown briefing of sessions for a time window |
+| `omnisess-skills-audit` | Classify Claude Code skills by usage (Keep / Borderline / Archive) |
 
 ## Supported Sources
 
@@ -41,5 +42,6 @@ go install github.com/psacc/omnisess@latest
 |--------|--------|
 | Claude Code | Full |
 | Cursor | Full |
-| Codex | Stub |
+| Codex | Full |
+| GitHub Copilot CLI | Full |
 | Gemini | Stub |

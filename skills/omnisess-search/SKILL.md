@@ -1,7 +1,7 @@
 ---
 name: search
 description: |
-  Full-text search across all AI coding sessions (Claude Code, Cursor, Codex, Gemini).
+  Full-text search across all AI coding sessions (Claude Code, Cursor, Codex, GitHub Copilot CLI, Gemini).
   Use this skill when asked to search sessions, find a conversation about a topic,
   look up what was discussed in past sessions, or find sessions mentioning specific code or concepts.
   Trigger phrases: "search sessions", "find sessions about", "look up in sessions",
