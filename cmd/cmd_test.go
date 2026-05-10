@@ -153,11 +153,102 @@ func (g *getSessionSource) Search(_ string, _ source.ListOptions) ([]model.Searc
 	return nil, nil
 }
 
+// ---------------------------------------------------------------------------
+// digest mock sources
+// ---------------------------------------------------------------------------
+
+const (
+	digestSrcName       = model.Tool("test-digest-src")
+	digestGetErrSrcName = model.Tool("test-digest-get-err-src")
+	digestGetNilSrcName = model.Tool("test-digest-get-nil-src")
+)
+
+type digestSrc struct{}
+
+func (d *digestSrc) Name() model.Tool { return digestSrcName }
+func (d *digestSrc) List(_ source.ListOptions) ([]model.Session, error) {
+	return []model.Session{
+		{
+			ID:        "digest-sess-1",
+			Tool:      digestSrcName,
+			Project:   "/tmp/test-project",
+			Preview:   "First question?",
+			StartedAt: time.Date(2026, 5, 10, 9, 0, 0, 0, time.UTC),
+			UpdatedAt: time.Date(2026, 5, 10, 9, 1, 0, 0, time.UTC),
+		},
+		{
+			ID:        "digest-sess-2",
+			Tool:      digestSrcName,
+			Project:   "/tmp/test-project",
+			Preview:   "Second question?",
+			StartedAt: time.Date(2026, 5, 10, 10, 0, 0, 0, time.UTC),
+			UpdatedAt: time.Date(2026, 5, 10, 10, 1, 0, 0, time.UTC),
+		},
+	}, nil
+}
+func (d *digestSrc) Get(id string) (*model.Session, error) {
+	switch id {
+	case "digest-sess-1":
+		return &model.Session{
+			ID:      "digest-sess-1",
+			Tool:    digestSrcName,
+			Project: "/tmp/test-project",
+			Preview: "First question?",
+			Messages: []model.Message{
+				{Role: model.RoleUser, Content: "First question?", Timestamp: time.Date(2026, 5, 10, 9, 0, 0, 0, time.UTC)},
+				{Role: model.RoleAssistant, Content: "Answer 1.", Timestamp: time.Date(2026, 5, 10, 9, 1, 0, 0, time.UTC)},
+			},
+		}, nil
+	case "digest-sess-2":
+		return &model.Session{
+			ID:      "digest-sess-2",
+			Tool:    digestSrcName,
+			Project: "/tmp/test-project",
+			Preview: "Second question?",
+			Messages: []model.Message{
+				{Role: model.RoleUser, Content: "Second question?"},
+				{Role: model.RoleAssistant, Content: "Answer 2."},
+			},
+		}, nil
+	}
+	return nil, nil
+}
+func (d *digestSrc) Search(_ string, _ source.ListOptions) ([]model.SearchResult, error) {
+	return nil, nil
+}
+
+type digestGetErrSrc struct{}
+
+func (d *digestGetErrSrc) Name() model.Tool { return digestGetErrSrcName }
+func (d *digestGetErrSrc) List(_ source.ListOptions) ([]model.Session, error) {
+	return []model.Session{{ID: "digest-get-err-sess", Tool: digestGetErrSrcName}}, nil
+}
+func (d *digestGetErrSrc) Get(_ string) (*model.Session, error) {
+	return nil, errors.New("mock digest get error")
+}
+func (d *digestGetErrSrc) Search(_ string, _ source.ListOptions) ([]model.SearchResult, error) {
+	return nil, nil
+}
+
+type digestGetNilSrc struct{}
+
+func (d *digestGetNilSrc) Name() model.Tool { return digestGetNilSrcName }
+func (d *digestGetNilSrc) List(_ source.ListOptions) ([]model.Session, error) {
+	return []model.Session{{ID: "digest-get-nil-sess", Tool: digestGetNilSrcName}}, nil
+}
+func (d *digestGetNilSrc) Get(_ string) (*model.Session, error) { return nil, nil }
+func (d *digestGetNilSrc) Search(_ string, _ source.ListOptions) ([]model.SearchResult, error) {
+	return nil, nil
+}
+
 func init() {
 	source.Register(&errSource{})
 	source.Register(&activeSource{})
 	source.Register(&getErrSource{})
 	source.Register(&getSessionSource{})
+	source.Register(&digestSrc{})
+	source.Register(&digestGetErrSrc{})
+	source.Register(&digestGetNilSrc{})
 	resume.Register(&mockResumer{})
 }
 
@@ -419,6 +510,12 @@ func TestParseQualifiedID(t *testing.T) {
 			input:    "gemini:jkl012",
 			wantTool: model.ToolGemini,
 			wantID:   "jkl012",
+		},
+		{
+			name:     "copilot",
+			input:    "copilot:mno345",
+			wantTool: model.ToolCopilot,
+			wantID:   "mno345",
 		},
 		{
 			name:      "no colon — format error",
@@ -726,6 +823,273 @@ func TestExecute_Help(t *testing.T) {
 	rootCmd.SetArgs(nil)
 	if err != nil {
 		t.Errorf("rootCmd.Execute(--help) returned error: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// runDigest
+// ---------------------------------------------------------------------------
+
+// TestRunDigest_DefaultsToToday covers the "no time filter → default to today" path.
+func TestRunDigest_DefaultsToToday(t *testing.T) {
+	silenceOutput(t)
+	resetFlags()
+	// flagDate and flagSince are both empty → runDigest sets OnDate to today.
+	// errSource warns and skips so output has 0 sessions; we just verify no error.
+	flagTool = string(errSourceName)
+	err := runDigest(newNoopCmd(), nil)
+	if err != nil {
+		t.Errorf("runDigest (defaults to today) returned unexpected error: %v", err)
+	}
+}
+
+// TestRunDigest_WithFlagDate covers the "OnDate already set → no default" path
+// and the "dateLabel != empty" branch.
+func TestRunDigest_WithFlagDate(t *testing.T) {
+	silenceOutput(t)
+	resetFlags()
+	flagDate = "2026-05-10"
+	flagTool = string(digestSrcName)
+	err := runDigest(newNoopCmd(), nil)
+	if err != nil {
+		t.Errorf("runDigest (with flagDate) returned unexpected error: %v", err)
+	}
+}
+
+// TestRunDigest_SourceError covers the "source.List error → warn and continue" path.
+func TestRunDigest_SourceError(t *testing.T) {
+	silenceOutput(t)
+	resetFlags()
+	flagDate = "2026-05-10"
+	flagTool = string(errSourceName)
+	err := runDigest(newNoopCmd(), nil)
+	if err != nil {
+		t.Errorf("runDigest (source error) returned unexpected error: %v", err)
+	}
+}
+
+// TestRunDigest_LimitApplied covers the cross-source limit truncation.
+func TestRunDigest_LimitApplied(t *testing.T) {
+	silenceOutput(t)
+	resetFlags()
+	flagDate = "2026-05-10"
+	flagTool = string(digestSrcName)
+	flagLimit = 1
+	err := runDigest(newNoopCmd(), nil)
+	if err != nil {
+		t.Errorf("runDigest (limit applied) returned unexpected error: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// writeDigest
+// ---------------------------------------------------------------------------
+
+func TestWriteDigest_NoSessions(t *testing.T) {
+	var buf strings.Builder
+	writeDigest(&buf, nil, nil, "2026-05-10")
+	got := buf.String()
+	if !strings.Contains(got, "0 sessions") {
+		t.Errorf("no-sessions digest missing count; got: %q", got)
+	}
+	if strings.Contains(got, "###") {
+		t.Errorf("no-sessions digest should not have session headings; got: %q", got)
+	}
+}
+
+func TestWriteDigest_UnknownTool(t *testing.T) {
+	var buf strings.Builder
+	sessions := []model.Session{{ID: "s1", Tool: model.Tool("no-such-tool")}}
+	writeDigest(&buf, sessions, map[model.Tool]source.Source{}, "2026-05-10")
+	got := buf.String()
+	if strings.Contains(got, "###") {
+		t.Errorf("unknown-tool session should be skipped; got: %q", got)
+	}
+}
+
+func TestWriteDigest_GetError(t *testing.T) {
+	var buf strings.Builder
+	sessions := []model.Session{{ID: "err-sess", Tool: digestGetErrSrcName}}
+	srcMap := map[model.Tool]source.Source{digestGetErrSrcName: &digestGetErrSrc{}}
+	writeDigest(&buf, sessions, srcMap, "2026-05-10")
+	got := buf.String()
+	if strings.Contains(got, "###") {
+		t.Errorf("get-error session should be skipped; got: %q", got)
+	}
+}
+
+func TestWriteDigest_GetNil(t *testing.T) {
+	var buf strings.Builder
+	sessions := []model.Session{{ID: "nil-sess", Tool: digestGetNilSrcName}}
+	srcMap := map[model.Tool]source.Source{digestGetNilSrcName: &digestGetNilSrc{}}
+	writeDigest(&buf, sessions, srcMap, "2026-05-10")
+	got := buf.String()
+	if strings.Contains(got, "###") {
+		t.Errorf("nil-session should be skipped; got: %q", got)
+	}
+}
+
+func TestWriteDigest_MultiSession(t *testing.T) {
+	var buf strings.Builder
+	sessions := []model.Session{
+		{ID: "digest-sess-1", Tool: digestSrcName},
+		{ID: "digest-sess-2", Tool: digestSrcName},
+	}
+	srcMap := map[model.Tool]source.Source{digestSrcName: &digestSrc{}}
+	writeDigest(&buf, sessions, srcMap, "2026-05-10")
+	got := buf.String()
+	if strings.Count(got, "---") != 1 {
+		t.Errorf("two sessions should produce exactly 1 separator; got: %q", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// writeDigestSession
+// ---------------------------------------------------------------------------
+
+func TestWriteDigestSession(t *testing.T) {
+	home := os.Getenv("HOME") // set to tmpdir by TestMain
+
+	tests := []struct {
+		name     string
+		session  *model.Session
+		wantSubs []string
+		notWant  []string
+	}{
+		{
+			name: "basic user and assistant turns",
+			session: &model.Session{
+				ID:      "sess-1",
+				Tool:    model.ToolClaude,
+				Project: "/tmp/project",
+				Preview: "Hello?",
+				Messages: []model.Message{
+					{Role: model.RoleUser, Content: "Hello?", Timestamp: time.Date(2026, 5, 10, 9, 0, 0, 0, time.UTC)},
+					{Role: model.RoleAssistant, Content: "World!", Timestamp: time.Date(2026, 5, 10, 9, 1, 0, 0, time.UTC)},
+				},
+			},
+			wantSubs: []string{"### Hello?", "**Q [", "**A [", "Hello?", "World!"},
+		},
+		{
+			name: "no preview uses ID as title",
+			session: &model.Session{
+				ID:      "my-session-id",
+				Tool:    model.ToolClaude,
+				Project: "/tmp/project",
+			},
+			wantSubs: []string{"### my-session-id"},
+		},
+		{
+			name: "long title truncated to 80 chars",
+			session: &model.Session{
+				Preview: strings.Repeat("A", 90),
+				Tool:    model.ToolClaude,
+				Project: "/tmp/project",
+			},
+			wantSubs: []string{"### " + strings.Repeat("A", 80)},
+			notWant:  []string{strings.Repeat("A", 81)},
+		},
+		{
+			name: "project with home prefix replaced by tilde",
+			session: &model.Session{
+				ID:      "sess-home",
+				Tool:    model.ToolClaude,
+				Preview: "Q",
+				Project: home + "/myproject",
+			},
+			wantSubs: []string{"~/myproject"},
+		},
+		{
+			name: "empty user message skipped",
+			session: &model.Session{
+				ID:   "sess-empty-user",
+				Tool: model.ToolClaude,
+				Messages: []model.Message{
+					{Role: model.RoleUser, Content: ""},
+					{Role: model.RoleUser, Content: "Real question?"},
+				},
+			},
+			wantSubs: []string{"Real question?"},
+		},
+		{
+			name: "user turn truncated at 2000 chars",
+			session: &model.Session{
+				ID:   "sess-user-trunc",
+				Tool: model.ToolClaude,
+				Messages: []model.Message{
+					{Role: model.RoleUser, Content: strings.Repeat("x", 2100)},
+				},
+			},
+			wantSubs: []string{"_(truncated)_"},
+		},
+		{
+			name: "assistant turn truncated at 2000 chars",
+			session: &model.Session{
+				ID:   "sess-asst-trunc",
+				Tool: model.ToolClaude,
+				Messages: []model.Message{
+					{Role: model.RoleAssistant, Content: strings.Repeat("y", 2100)},
+				},
+			},
+			wantSubs: []string{"_(truncated)_"},
+		},
+		{
+			name: "assistant tool-calls-only emits tool names",
+			session: &model.Session{
+				ID:   "sess-tools",
+				Tool: model.ToolClaude,
+				Messages: []model.Message{
+					{
+						Role:      model.RoleAssistant,
+						Content:   "",
+						ToolCalls: []model.ToolCall{{Name: "Bash"}, {Name: "Read"}},
+					},
+				},
+			},
+			wantSubs: []string{"_[tools: Bash, Read]_"},
+		},
+		{
+			name: "assistant empty with no tools silently skipped",
+			session: &model.Session{
+				ID:   "sess-empty-asst",
+				Tool: model.ToolClaude,
+				Messages: []model.Message{
+					{Role: model.RoleAssistant, Content: ""},
+					{Role: model.RoleUser, Content: "After empty assistant"},
+				},
+			},
+			wantSubs: []string{"After empty assistant"},
+			notWant:  []string{"**A"},
+		},
+		{
+			name: "no timestamp omits bracket",
+			session: &model.Session{
+				ID:   "sess-no-ts",
+				Tool: model.ToolClaude,
+				Messages: []model.Message{
+					{Role: model.RoleUser, Content: "No timestamp here"},
+				},
+			},
+			wantSubs: []string{"**Q:** No timestamp here"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf strings.Builder
+			writeDigestSession(&buf, tt.session)
+			got := buf.String()
+			for _, want := range tt.wantSubs {
+				if !strings.Contains(got, want) {
+					t.Errorf("output missing %q:\n%s", want, got)
+				}
+			}
+			for _, nw := range tt.notWant {
+				if strings.Contains(got, nw) {
+					t.Errorf("output should not contain %q:\n%s", nw, got)
+				}
+			}
+		})
 	}
 }
 
