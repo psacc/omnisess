@@ -16,7 +16,7 @@ Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.copilot/, ~/.gemini/
   internal/model/       (unified Session, Message types)
         │
         ▼
-  cmd/*                 (Cobra commands: list, search, show, active, ps, tui, skills audit, version)
+  cmd/*                 (Cobra commands: list, search, show, active, digest, ps, tui, skills audit, version)
         │
         ▼
   internal/output/      (table or JSON rendering)
@@ -29,6 +29,7 @@ Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.copilot/, ~/.gemini/
 - **cmd/search.go** — Calls `Source.Search()` in parallel via errgroup, merges results, renders with snippets.
 - **cmd/show.go** — Parses `tool:id` argument, calls `Source.Get()`, renders full conversation.
 - **cmd/active.go** — Calls `Source.List()` with `Active: true` filter.
+- **cmd/digest.go** — `omnisess digest`: prints sessions for a calendar day with full Q&A as Obsidian-compatible markdown. Rune-safe truncation, `$HOME` → `~` substitution.
 - **cmd/ps.go** — `omnisess ps`: merged ancestor tree of live Claude sessions (macOS only). Renders text tree or JSON via `--json`.
 - **cmd/tui.go** — Interactive terminal UI for browsing sessions.
 - **cmd/version.go** — `omnisess version` / `omnisess --version`: prints the installed module version.
