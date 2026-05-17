@@ -49,9 +49,9 @@ func parseQualifiedID(s string) (model.Tool, string, error) {
 	}
 	tool := model.Tool(parts[0])
 	switch tool {
-	case model.ToolClaude, model.ToolCursor, model.ToolCodex, model.ToolGemini:
+	case model.ToolClaude, model.ToolCopilot, model.ToolCursor, model.ToolCodex, model.ToolGemini:
 		return tool, parts[1], nil
 	default:
-		return "", "", fmt.Errorf("unknown tool %q, expected one of: claude, cursor, codex, gemini", parts[0])
+		return "", "", fmt.Errorf("unknown tool %q, expected one of: claude, copilot, cursor, codex, gemini", parts[0])
 	}
 }
