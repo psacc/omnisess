@@ -1144,6 +1144,33 @@ func TestWriteDigestSession(t *testing.T) {
 			wantSubs: []string{"~/myproject"},
 		},
 		{
+			// Sanity: when the project IS the home dir (no subpath), it should
+			// render as "~". Guards against the FUP-C fix accidentally dropping
+			// this case while tightening the prefix check.
+			name: "project equal to home replaced by tilde",
+			session: &model.Session{
+				ID:      "sess-home-exact",
+				Tool:    model.ToolClaude,
+				Preview: "Q",
+				Project: home,
+			},
+			wantSubs: []string{"`~`"},
+		},
+		{
+			// Regression: strings.HasPrefix(project, home) matches paths that
+			// share the home prefix without a separator — e.g. home="/tmp/X",
+			// project="/tmp/Xbar/proj" produces "~bar/proj". The fix requires a
+			// separator: project == home || HasPrefix(project, home+"/").
+			name: "project that prefix-collides with home is not substituted",
+			session: &model.Session{
+				ID:      "sess-prefix-collision",
+				Tool:    model.ToolClaude,
+				Preview: "Q",
+				Project: home + "bar/proj",
+			},
+			notWant: []string{"~bar"},
+		},
+		{
 			name: "empty user message skipped",
 			session: &model.Session{
 				ID:   "sess-empty-user",
