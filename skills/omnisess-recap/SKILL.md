@@ -12,7 +12,7 @@ license: MIT
 allowed-tools: Bash
 argument-hint: "[today|yesterday|Nd]"
 metadata:
-  version: 0.6.0
+  version: 0.7.0
 ---
 
 # omnisess recap
