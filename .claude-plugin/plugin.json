@@ -23,6 +23,7 @@
     { "name": "active", "file": "commands/omnisess/active.md" },
     { "name": "show",   "file": "commands/omnisess/show.md" },
     { "name": "recap",  "file": "commands/omnisess/recap.md" },
+    { "name": "digest", "file": "commands/omnisess/digest.md" },
     { "name": "ps",          "file": "commands/omnisess/ps.md" },
     { "name": "skills-audit", "file": "commands/omnisess/skills-audit.md" }
   ],
@@ -46,6 +47,10 @@
     {
       "name": "recap",
       "file": "skills/omnisess-recap/SKILL.md"
+    },
+    {
+      "name": "digest",
+      "file": "skills/omnisess-digest/SKILL.md"
     },
     {
       "name": "ps",
