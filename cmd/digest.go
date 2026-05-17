@@ -105,7 +105,12 @@ func writeDigestSession(w io.Writer, s *model.Session) {
 	title = truncateRunes(title, 80)
 
 	project := s.Project
-	if home, err := os.UserHomeDir(); err == nil && strings.HasPrefix(project, home) {
+	// Substitute $HOME → ~ only when project IS the home dir or sits BELOW it
+	// (i.e., the next byte after $HOME is "/"). The naive HasPrefix(project, home)
+	// matched siblings whose names start with the home basename, e.g.
+	// home="/Users/foo" + project="/Users/foobar/x" → "~bar/x".
+	if home, err := os.UserHomeDir(); err == nil &&
+		(project == home || strings.HasPrefix(project, home+"/")) {
 		project = "~" + project[len(home):]
 	}
 
