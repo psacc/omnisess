@@ -10,7 +10,7 @@ license: MIT
 allowed-tools: Bash
 argument-hint: "<query>"
 metadata:
-  version: 0.6.0
+  version: 0.7.0
 ---
 
 # omnisess search
