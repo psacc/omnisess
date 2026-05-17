@@ -571,6 +571,45 @@ func TestParseQualifiedID(t *testing.T) {
 	}
 }
 
+// TestParseQualifiedID_AcceptsAllRegisteredSources is the structural drift
+// guard: every source.Source registered via source.Register() must be accepted
+// by parseQualifiedID. This kills the bug class that PR #44 hot-fixed —
+// hardcoded allow-lists silently drift when a new source is added.
+func TestParseQualifiedID_AcceptsAllRegisteredSources(t *testing.T) {
+	for _, src := range source.All() {
+		name := string(src.Name())
+		t.Run(name, func(t *testing.T) {
+			tool, id, err := parseQualifiedID(name + ":abc123")
+			if err != nil {
+				t.Errorf("parseQualifiedID rejected registered source %q: %v", name, err)
+				return
+			}
+			if string(tool) != name {
+				t.Errorf("tool = %q, want %q", tool, name)
+			}
+			if id != "abc123" {
+				t.Errorf("id = %q, want %q", id, "abc123")
+			}
+		})
+	}
+}
+
+// TestParseQualifiedID_ErrorListsRegisteredSources verifies the error message
+// for an unknown tool enumerates every registered source. This is the
+// user-facing half of the drift guard.
+func TestParseQualifiedID_ErrorListsRegisteredSources(t *testing.T) {
+	_, _, err := parseQualifiedID("definitely-not-a-real-tool:abc")
+	if err == nil {
+		t.Fatal("expected error for unknown tool, got nil")
+	}
+	for _, src := range source.All() {
+		name := string(src.Name())
+		if !strings.Contains(err.Error(), name) {
+			t.Errorf("error %q does not mention registered source %q", err.Error(), name)
+		}
+	}
+}
+
 // ---------------------------------------------------------------------------
 // runList
 // ---------------------------------------------------------------------------
