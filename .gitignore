@@ -13,4 +13,6 @@ coverage.html
 .tmp_*
 .worktrees/
 cov_*
+omnisess-prerelease
+qa-reports/
 skills-lock.json
