@@ -17,6 +17,7 @@ import (
 	"github.com/psacc/omnisess/internal/model"
 	"github.com/psacc/omnisess/internal/procsnap"
 	"github.com/psacc/omnisess/internal/resume"
+	"github.com/psacc/omnisess/internal/source"
 	"github.com/psacc/omnisess/internal/tui"
 
 	// Register resumers via init() (behind !windows, same as this file).
@@ -50,14 +51,15 @@ func init() {
 	rootCmd.AddCommand(tuiCmd)
 }
 
-// buildToolModes queries the resume registry and returns a map of tool -> mode
-// strings suitable for passing to the TUI (keeping the TUI decoupled from
-// the resume package types).
+// buildToolModes queries the resume registry for every registered source and
+// returns a map of tool -> mode strings suitable for passing to the TUI
+// (keeping the TUI decoupled from the resume package types). Driving the
+// iteration from source.All() removes the drift bug class — previously this
+// list was hardcoded and silently omitted Copilot when it was added.
 func buildToolModes() map[model.Tool][]string {
-	tools := []model.Tool{model.ToolClaude, model.ToolCursor, model.ToolCodex, model.ToolGemini}
 	tm := make(map[model.Tool][]string)
-	for _, tool := range tools {
-		modes := resume.Modes(tool)
+	for _, src := range source.All() {
+		modes := resume.Modes(src.Name())
 		if len(modes) == 0 {
 			continue
 		}
@@ -65,7 +67,7 @@ func buildToolModes() map[model.Tool][]string {
 		for i, m := range modes {
 			strs[i] = string(m)
 		}
-		tm[tool] = strs
+		tm[src.Name()] = strs
 	}
 	return tm
 }
