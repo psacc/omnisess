@@ -27,13 +27,21 @@ While the version is `v0.x.y`, minor bumps may include breaking changes — this
 
 ## Step-by-Step Release Instructions
 
+The release flow is **two stages**:
+
+1. **Release-prep PR** — bump `SKILL.md` versions, run agentic QA, get human review, merge.
+2. **Tag + publish** — create the git tag and the GitHub release from `main`.
+
+The two stages are separate because branch protection blocks committing at release time; the SKILL.md version bump and the QA gate must happen on a PR that merges into `main` before tagging.
+
 ### Prerequisites
 
 - `gh` CLI installed and authenticated (`gh auth status`)
-- `main` branch is clean and `make check` passes
-- You are on `main` with the commit you want to tag checked out
+- `main` is clean and `make check` passes
+- You are on `main` with the commit you want to release checked out
+- Go 1.22+ installed (needed for `go build` during the QA step)
 
-### Steps
+### Stage 1 — Release-prep PR
 
 1. Confirm `main` is ready:
 
@@ -45,7 +53,44 @@ While the version is `v0.x.y`, minor bumps may include breaking changes — this
 
 2. Decide the version number using the semver rules above. Use the format `vX.Y.Z`.
 
-3. Create the annotated tag and push it:
+3. Create the release-prep branch and bump SKILL.md versions:
+
+   ```bash
+   git checkout -b release-prep-v0.2.0
+   make bump-skills VERSION=v0.2.0
+   git commit -am "chore(release): bump SKILL.md versions to v0.2.0"
+   ```
+
+   `make bump-skills` rewrites the `metadata.version` field in every `SKILL.md` (root + per-skill) to match the tag. The `make release` target hard-fails if any `SKILL.md` is out of sync, so this step is mandatory.
+
+4. Open the prep PR using the standard template:
+
+   ```bash
+   git push -u origin release-prep-v0.2.0
+   gh pr create --title "chore(release): bump SKILL.md versions to v0.2.0" --body-file .github/pull_request_template.md
+   ```
+
+   Fill in the PR template body. Wait for CI green.
+
+5. **QA gate — run the agentic QA per [`../../TESTING.md`](../../TESTING.md).**
+
+   The agent installs the pre-release binary, walks every user-facing command (baseline + risk overlay based on what changed since the last tag), and writes a structured report to `qa-reports/v0.2.0.md` (local, gitignored). It emits a one-line status (`QA: pass` / `QA: pass with N notes` / `QA: fail — <reason>`) which you post as a comment on the prep PR.
+
+   **`QA: fail` blocks the merge.** Fix, re-run the agent, re-post the status.
+
+6. Get the prep PR approved and merge it.
+
+### Stage 2 — Tag + publish
+
+7. Update `main` and confirm it is clean:
+
+   ```bash
+   git checkout main
+   git pull origin main
+   make check
+   ```
+
+8. Create the annotated tag and push it:
 
    ```bash
    make tag VERSION=v0.2.0
@@ -53,7 +98,7 @@ While the version is `v0.x.y`, minor bumps may include breaking changes — this
 
    This creates an annotated git tag on the current commit and pushes it to origin. Verify the commit SHA before proceeding.
 
-4. Publish the GitHub Release:
+9. Publish the GitHub Release:
 
    ```bash
    make release VERSION=v0.2.0
@@ -61,12 +106,12 @@ While the version is `v0.x.y`, minor bumps may include breaking changes — this
 
    This runs `make tag` (idempotent if already done) then calls `gh release create v0.2.0 --generate-notes`. GitHub auto-generates release notes from commits since the previous tag. You can edit the notes on the GitHub UI after creation.
 
-5. Confirm the release is live:
+10. Confirm the release is live:
 
-   ```bash
-   git tag --list | sort -V   # confirms local tag
-   gh release view v0.2.0     # confirms GitHub release
-   ```
+    ```bash
+    git tag --list | sort -V   # confirms local tag
+    gh release view v0.2.0     # confirms GitHub release
+    ```
 
 ## Version History
 
