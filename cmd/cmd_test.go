@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 
@@ -166,16 +167,11 @@ const (
 type digestSrc struct{}
 
 func (d *digestSrc) Name() model.Tool { return digestSrcName }
+
+// List returns two sessions in INTENTIONALLY non-StartedAt order so that any
+// regression in runDigestTo's sort step is detected by TestRunDigest_WithFlagDate.
 func (d *digestSrc) List(_ source.ListOptions) ([]model.Session, error) {
 	return []model.Session{
-		{
-			ID:        "digest-sess-1",
-			Tool:      digestSrcName,
-			Project:   "/tmp/test-project",
-			Preview:   "First question?",
-			StartedAt: time.Date(2026, 5, 10, 9, 0, 0, 0, time.UTC),
-			UpdatedAt: time.Date(2026, 5, 10, 9, 1, 0, 0, time.UTC),
-		},
 		{
 			ID:        "digest-sess-2",
 			Tool:      digestSrcName,
@@ -183,6 +179,14 @@ func (d *digestSrc) List(_ source.ListOptions) ([]model.Session, error) {
 			Preview:   "Second question?",
 			StartedAt: time.Date(2026, 5, 10, 10, 0, 0, 0, time.UTC),
 			UpdatedAt: time.Date(2026, 5, 10, 10, 1, 0, 0, time.UTC),
+		},
+		{
+			ID:        "digest-sess-1",
+			Tool:      digestSrcName,
+			Project:   "/tmp/test-project",
+			Preview:   "First question?",
+			StartedAt: time.Date(2026, 5, 10, 9, 0, 0, 0, time.UTC),
+			UpdatedAt: time.Date(2026, 5, 10, 9, 1, 0, 0, time.UTC),
 		},
 	}, nil
 }
@@ -529,6 +533,15 @@ func TestParseQualifiedID(t *testing.T) {
 			wantErr:   true,
 			errSubstr: "unknown tool",
 		},
+		{
+			// Regression for PR #44: copilot was registered but missing from the error
+			// message's allow-list. Asserting it explicitly so the next source-list
+			// drift is caught at this test.
+			name:      "unknown tool error message lists copilot",
+			input:     "unknown:abc123",
+			wantErr:   true,
+			errSubstr: "copilot",
+		},
 	}
 
 	for _, tt := range tests {
@@ -538,6 +551,10 @@ func TestParseQualifiedID(t *testing.T) {
 				if err == nil {
 					t.Fatalf("parseQualifiedID(%q) returned nil error, want error containing %q",
 						tt.input, tt.errSubstr)
+				}
+				if tt.errSubstr != "" && !strings.Contains(err.Error(), tt.errSubstr) {
+					t.Errorf("parseQualifiedID(%q) error = %q, want substring %q",
+						tt.input, err.Error(), tt.errSubstr)
 				}
 				return
 			}
@@ -830,54 +847,124 @@ func TestExecute_Help(t *testing.T) {
 // runDigest
 // ---------------------------------------------------------------------------
 
-// TestRunDigest_DefaultsToToday covers the "no time filter → default to today" path.
-func TestRunDigest_DefaultsToToday(t *testing.T) {
+// TestRunDigest_CobraAdapter ensures the thin runDigest(cobra) wrapper that
+// forwards to runDigestTo(os.Stdout) is covered. All behavioral assertions live
+// in the runDigestTo tests below.
+func TestRunDigest_CobraAdapter(t *testing.T) {
 	silenceOutput(t)
 	resetFlags()
-	// flagDate and flagSince are both empty → runDigest sets OnDate to today.
-	// errSource warns and skips so output has 0 sessions; we just verify no error.
 	flagTool = string(errSourceName)
-	err := runDigest(newNoopCmd(), nil)
-	if err != nil {
-		t.Errorf("runDigest (defaults to today) returned unexpected error: %v", err)
+	if err := runDigest(newNoopCmd(), nil); err != nil {
+		t.Errorf("runDigest (cobra adapter) returned unexpected error: %v", err)
 	}
 }
 
-// TestRunDigest_WithFlagDate covers the "OnDate already set → no default" path
-// and the "dateLabel != empty" branch.
+// TestRunDigest_DefaultsToToday covers the "no time filter → default to today" path.
+// Asserts today's date appears in the header and the session count is 0
+// (errSource only warns; it returns no sessions).
+func TestRunDigest_DefaultsToToday(t *testing.T) {
+	silenceOutput(t) // suppress errSource's stderr warning
+	resetFlags()
+	flagTool = string(errSourceName)
+
+	var buf strings.Builder
+	if err := runDigestTo(&buf); err != nil {
+		t.Fatalf("runDigestTo returned unexpected error: %v", err)
+	}
+
+	today := time.Now().Format("2006-01-02")
+	out := buf.String()
+	if !strings.Contains(out, "## AI sessions — "+today) {
+		t.Errorf("expected today's date %q in header; got: %q", today, out)
+	}
+	if !strings.Contains(out, "(0 sessions)") {
+		t.Errorf("expected (0 sessions) in header; got: %q", out)
+	}
+	if strings.Contains(out, "###") {
+		t.Errorf("expected no session headings when 0 sessions; got: %q", out)
+	}
+}
+
+// TestRunDigest_WithFlagDate verifies the flag-date branch AND the sort-by-StartedAt
+// branch. digestSrc.List returns sessions in non-StartedAt order; the test asserts
+// they appear in StartedAt order in the rendered output.
 func TestRunDigest_WithFlagDate(t *testing.T) {
-	silenceOutput(t)
 	resetFlags()
 	flagDate = "2026-05-10"
 	flagTool = string(digestSrcName)
-	err := runDigest(newNoopCmd(), nil)
-	if err != nil {
-		t.Errorf("runDigest (with flagDate) returned unexpected error: %v", err)
+
+	var buf strings.Builder
+	if err := runDigestTo(&buf); err != nil {
+		t.Fatalf("runDigestTo returned unexpected error: %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "## AI sessions — 2026-05-10") {
+		t.Errorf("expected flagDate %q in header; got: %q", "2026-05-10", out)
+	}
+	if !strings.Contains(out, "(2 sessions)") {
+		t.Errorf("expected (2 sessions) in header; got: %q", out)
+	}
+	// Sort regression: digestSrc.List returns [sess-2, sess-1]; runDigestTo must
+	// reorder them by StartedAt so sess-1 (09:00) appears before sess-2 (10:00).
+	idx1 := strings.Index(out, "First question?")
+	idx2 := strings.Index(out, "Second question?")
+	if idx1 == -1 || idx2 == -1 {
+		t.Fatalf("expected both session titles in output; got: %q", out)
+	}
+	if idx1 >= idx2 {
+		t.Errorf("sessions out of order: First question? at %d, Second question? at %d; output: %q",
+			idx1, idx2, out)
 	}
 }
 
 // TestRunDigest_SourceError covers the "source.List error → warn and continue" path.
+// Asserts the header still renders with 0 sessions.
 func TestRunDigest_SourceError(t *testing.T) {
-	silenceOutput(t)
+	silenceOutput(t) // suppress errSource's stderr warning
 	resetFlags()
 	flagDate = "2026-05-10"
 	flagTool = string(errSourceName)
-	err := runDigest(newNoopCmd(), nil)
-	if err != nil {
-		t.Errorf("runDigest (source error) returned unexpected error: %v", err)
+
+	var buf strings.Builder
+	if err := runDigestTo(&buf); err != nil {
+		t.Fatalf("runDigestTo returned unexpected error: %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "(0 sessions)") {
+		t.Errorf("source error should yield 0 sessions in header; got: %q", out)
 	}
 }
 
-// TestRunDigest_LimitApplied covers the cross-source limit truncation.
+// TestRunDigest_LimitApplied covers the limit truncation branch. digestSrc.List
+// returns 2 sessions; with flagLimit=1 the output must contain only one and the
+// header must report (1 sessions).
 func TestRunDigest_LimitApplied(t *testing.T) {
-	silenceOutput(t)
 	resetFlags()
 	flagDate = "2026-05-10"
 	flagTool = string(digestSrcName)
 	flagLimit = 1
-	err := runDigest(newNoopCmd(), nil)
-	if err != nil {
-		t.Errorf("runDigest (limit applied) returned unexpected error: %v", err)
+
+	var buf strings.Builder
+	if err := runDigestTo(&buf); err != nil {
+		t.Fatalf("runDigestTo returned unexpected error: %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "(1 sessions)") {
+		t.Errorf("expected (1 sessions) in header with limit=1; got: %q", out)
+	}
+	if got := strings.Count(out, "### "); got != 1 {
+		t.Errorf("expected exactly 1 session heading with limit=1; got %d in: %q", got, out)
+	}
+	// With only 1 session there should be no separator.
+	if strings.Contains(out, "\n---\n") {
+		t.Errorf("expected no separator with limit=1; got: %q", out)
+	}
+	// After sort, the earlier session (sess-1 at 09:00) wins.
+	if !strings.Contains(out, "First question?") {
+		t.Errorf("limit=1 should keep the earliest session (First question?); got: %q", out)
 	}
 }
 
@@ -1079,6 +1166,12 @@ func TestWriteDigestSession(t *testing.T) {
 			var buf strings.Builder
 			writeDigestSession(&buf, tt.session)
 			got := buf.String()
+			// Defensive: every digest fragment must be valid UTF-8. This is a
+			// tripwire for future byte-slicing regressions (a multi-byte rune
+			// cut at a byte boundary produces invalid UTF-8).
+			if !utf8.ValidString(got) {
+				t.Errorf("writeDigestSession produced invalid UTF-8 output:\n%q", got)
+			}
 			for _, want := range tt.wantSubs {
 				if !strings.Contains(got, want) {
 					t.Errorf("output missing %q:\n%s", want, got)

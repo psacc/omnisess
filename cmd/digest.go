@@ -27,6 +27,12 @@ func init() {
 }
 
 func runDigest(_ *cobra.Command, _ []string) error {
+	return runDigestTo(os.Stdout)
+}
+
+// runDigestTo is the testable inner of runDigest. It writes the rendered digest
+// to w so tests can capture and assert on the output.
+func runDigestTo(w io.Writer) error {
 	srcs := getSources()
 	opts := getListOptions()
 	// Default to today when no time filter is given — digest is a daily-note helper.
@@ -63,7 +69,7 @@ func runDigest(_ *cobra.Command, _ []string) error {
 		dateLabel = time.Now().Format("2006-01-02")
 	}
 
-	writeDigest(os.Stdout, all, srcByTool, dateLabel)
+	writeDigest(w, all, srcByTool, dateLabel)
 	return nil
 }
 
