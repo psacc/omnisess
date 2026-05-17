@@ -49,7 +49,7 @@ In Claude Code, run:
 
 ### Usage
 
-Once installed, seven slash commands are available:
+Once installed, eight slash commands are available:
 
 | Command | Description | Example |
 |---|---|---|
@@ -58,6 +58,7 @@ Once installed, seven slash commands are available:
 | `/omnisess:active` | Show currently running sessions | `/omnisess:active` |
 | `/omnisess:show` | Show full detail for a session | `/omnisess:show claude:5c3f2742` |
 | `/omnisess:recap` | Structured markdown briefing of sessions for a time window | `/omnisess:recap today` |
+| `/omnisess:digest` | Print a calendar day's sessions as Obsidian-compatible markdown with full Q&A | `/omnisess:digest --date 2026-05-09` |
 | `/omnisess:ps` | Live Claude process tree with ancestor lineage (macOS) | `/omnisess:ps` |
 | `/omnisess:skills-audit` | Classify Claude Code skills by usage (Keep / Borderline / Archive) | `/omnisess:skills-audit --window 90d` |
 
@@ -108,6 +109,7 @@ claude:5c3f2742  ~/prj/myapp  (process alive, modified 47s ago)
 | `omnisess search <query>`     | Full-text search across sessions                  |
 | `omnisess active`             | Show sessions detected as currently running       |
 | `omnisess show <tool:id>`     | Show full detail for a single session             |
+| `omnisess digest`             | Print a calendar day's sessions as Obsidian-compatible markdown |
 | `omnisess ps`                 | Live Claude process tree with ancestor lineage (macOS) |
 | `omnisess tui`                | Interactive terminal UI for browsing sessions     |
 | `omnisess version`            | Print the installed omnisess version              |
