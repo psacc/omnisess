@@ -102,9 +102,7 @@ func writeDigestSession(w io.Writer, s *model.Session) {
 	if title == "" {
 		title = s.ID
 	}
-	if len(title) > 80 {
-		title = title[:80]
-	}
+	title = truncateRunes(title, 80)
 
 	project := s.Project
 	if home, err := os.UserHomeDir(); err == nil && strings.HasPrefix(project, home) {
@@ -125,9 +123,7 @@ func writeDigestSession(w io.Writer, s *model.Session) {
 			if content == "" {
 				continue
 			}
-			if len(content) > digestMaxTurnChars {
-				content = content[:digestMaxTurnChars] + "\n\n_(truncated)_"
-			}
+			content = truncateTurn(content)
 			fmt.Fprintf(w, "**Q%s:** %s\n\n", ts, content)
 		case model.RoleAssistant:
 			if content == "" {
@@ -140,10 +136,29 @@ func writeDigestSession(w io.Writer, s *model.Session) {
 				}
 				continue
 			}
-			if len(content) > digestMaxTurnChars {
-				content = content[:digestMaxTurnChars] + "\n\n_(truncated)_"
-			}
+			content = truncateTurn(content)
 			fmt.Fprintf(w, "**A%s:**\n%s\n\n", ts, content)
 		}
 	}
+}
+
+// truncateRunes returns s with at most maxRunes runes. Operates on runes (not
+// bytes) so the result is always valid UTF-8 even when s contains multi-byte
+// runes at the boundary.
+func truncateRunes(s string, maxRunes int) string {
+	rs := []rune(s)
+	if len(rs) <= maxRunes {
+		return s
+	}
+	return string(rs[:maxRunes])
+}
+
+// truncateTurn caps message content at digestMaxTurnChars runes and appends a
+// "_(truncated)_" marker on overflow. Used for both user and assistant turns.
+func truncateTurn(content string) string {
+	rs := []rune(content)
+	if len(rs) <= digestMaxTurnChars {
+		return content
+	}
+	return string(rs[:digestMaxTurnChars]) + "\n\n_(truncated)_"
 }
