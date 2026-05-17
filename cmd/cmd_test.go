@@ -1077,6 +1077,63 @@ func TestWriteDigestSession(t *testing.T) {
 			notWant:  []string{strings.Repeat("A", 81)},
 		},
 		{
+			// Regression: title truncation at byte 80 used to slice mid-rune for
+			// multi-byte UTF-8 (accents, emoji, CJK). The utf8.ValidString check
+			// in the test loop catches this; we also explicitly verify no Unicode
+			// replacement character escaped.
+			name: "title with multi-byte rune at byte-80 boundary",
+			session: &model.Session{
+				// 79 ASCII bytes + 'é' (2 bytes) — naive [:80] cuts between the
+				// two bytes of 'é' and produces invalid UTF-8.
+				Preview: strings.Repeat("a", 79) + "é",
+				Tool:    model.ToolClaude,
+				Project: "/tmp/project",
+			},
+			notWant: []string{"�"},
+		},
+		{
+			// Regression: emoji are 4 bytes; the same byte-slice bug applies at
+			// every boundary that intersects a multi-byte rune.
+			name: "title with 4-byte emoji at byte boundary",
+			session: &model.Session{
+				// 78 ASCII + emoji (4 bytes, occupies bytes 78-81). Any byte
+				// truncate inside it produces invalid UTF-8.
+				Preview: strings.Repeat("a", 78) + "🎉extra",
+				Tool:    model.ToolClaude,
+				Project: "/tmp/project",
+			},
+			notWant: []string{"�"},
+		},
+		{
+			// Regression: user-turn truncation at byte 2000 used to cut mid-rune.
+			// 1999 ASCII + 2 'é' = 2001 runes, 2003 bytes. Byte slice [:2000]
+			// cuts inside the first 'é' → invalid UTF-8. Rune slice [:2000] =
+			// 1999 'a' + 1 'é' → valid + truncated marker.
+			name: "user turn rune-truncated with multi-byte content at boundary",
+			session: &model.Session{
+				ID:   "sess-user-runes",
+				Tool: model.ToolClaude,
+				Messages: []model.Message{
+					{Role: model.RoleUser, Content: strings.Repeat("a", 1999) + "éé"},
+				},
+			},
+			wantSubs: []string{"_(truncated)_"},
+			notWant:  []string{"�"},
+		},
+		{
+			// Regression: assistant-turn truncation at byte 2000 had the same bug.
+			name: "assistant turn rune-truncated with multi-byte content at boundary",
+			session: &model.Session{
+				ID:   "sess-asst-runes",
+				Tool: model.ToolClaude,
+				Messages: []model.Message{
+					{Role: model.RoleAssistant, Content: strings.Repeat("a", 1999) + "éé"},
+				},
+			},
+			wantSubs: []string{"_(truncated)_"},
+			notWant:  []string{"�"},
+		},
+		{
 			name: "project with home prefix replaced by tilde",
 			session: &model.Session{
 				ID:      "sess-home",
