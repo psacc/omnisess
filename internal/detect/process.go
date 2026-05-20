@@ -54,11 +54,17 @@ func IsFileRecentlyModified(path string, threshold time.Duration) bool {
 	return time.Since(info.ModTime()) < threshold
 }
 
-// isSessionTreeRecentlyModified checks whether the session file OR any of its
+// IsSessionTreeRecentlyModified checks whether the session file OR any of its
 // subagent files were recently modified. Claude Code writes subagent transcripts
 // to <session_id>/subagents/agent-*.jsonl, and these are often the most recently
 // modified files during an active session.
-func isSessionTreeRecentlyModified(sessionFilePath string, threshold time.Duration) bool {
+//
+// Exported so callers that have already cached the per-tool process-running
+// result can short-circuit and skip the per-session pgrep spawn in
+// IsSessionActive. The vast majority of `omnisess list` runs see the
+// process-running probe as a constant: claude either is or isn't running for
+// the duration of the call.
+func IsSessionTreeRecentlyModified(sessionFilePath string, threshold time.Duration) bool {
 	// Check the main session file first.
 	if IsFileRecentlyModified(sessionFilePath, threshold) {
 		return true
@@ -91,7 +97,7 @@ func IsSessionActive(toolName string, sessionFilePath string) bool {
 	if !toolRunnerFn(toolName) {
 		return false
 	}
-	return isSessionTreeRecentlyModified(sessionFilePath, ActiveThreshold)
+	return IsSessionTreeRecentlyModified(sessionFilePath, ActiveThreshold)
 }
 
 // Truncate returns s truncated to maxLen with "..." appended if needed.
