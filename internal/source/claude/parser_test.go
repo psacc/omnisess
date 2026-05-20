@@ -629,9 +629,14 @@ func TestExtractSessionIDFromPath(t *testing.T) {
 // at the parser layer.
 func TestParseSessionFile_ToolUseResult(t *testing.T) {
 	path := filepath.Join("testdata", "tool_use_result.jsonl")
-	messages, _, _, err := parseSessionFile(path)
+	messages, mdl, _, err := parseSessionFile(path)
 	if err != nil {
 		t.Fatalf("parseSessionFile: %v", err)
+	}
+	// Fixture exercises both inner-`message.model` (line 1) and top-level
+	// `model` (later lines). First non-empty wins; inner model is captured.
+	if mdl != "claude-opus-4-7" {
+		t.Errorf("model = %q, want claude-opus-4-7", mdl)
 	}
 
 	// Collect all tool calls keyed by ID for easy assertions.

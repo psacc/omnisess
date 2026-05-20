@@ -485,6 +485,37 @@ func TestPeekSessionMetadata(t *testing.T) {
 			t.Error("expected model to be set")
 		}
 	})
+
+	t.Run("model captured from message.model fallback", func(t *testing.T) {
+		// Real Claude Code (~2.1.143+) puts model inside message.model, not
+		// at the top-level. peekSessionMetadata must fall back to that.
+		dir := t.TempDir()
+		path := filepath.Join(dir, "inner_model.jsonl")
+		content := `{"type":"assistant","message":{"role":"assistant","model":"claude-opus-4-7","content":[{"type":"text","text":"hi"}]},"timestamp":"2024-02-15T10:00:00Z","gitBranch":"feat/test"}` + "\n"
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		branch, mdl := peekSessionMetadata(path)
+		if branch != "feat/test" {
+			t.Errorf("branch = %q", branch)
+		}
+		if mdl != "claude-opus-4-7" {
+			t.Errorf("model = %q, want claude-opus-4-7 (from message.model)", mdl)
+		}
+	})
+
+	t.Run("assistant with no model anywhere keeps empty", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "no_model.jsonl")
+		content := `{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"hi"}]},"timestamp":"2024-02-15T10:00:00Z","gitBranch":"feat/test"}` + "\n"
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		_, mdl := peekSessionMetadata(path)
+		if mdl != "" {
+			t.Errorf("expected empty model, got %q", mdl)
+		}
+	})
 }
 
 // ---------------------------------------------------------------------------

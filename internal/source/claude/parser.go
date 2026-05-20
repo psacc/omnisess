@@ -35,10 +35,13 @@ type sessionLine struct {
 	ToolUseResult json.RawMessage `json:"toolUseResult"`
 }
 
-// messagePayload holds the role, content and usage block from the "message" field.
+// messagePayload holds the role, content, model, and usage block from the
+// "message" field. Newer Claude Code versions (~2.1.143+) put `model` inside
+// the message payload rather than at the top level of the JSONL line.
 type messagePayload struct {
 	Role    string          `json:"role"`
 	Content interface{}     `json:"content"`
+	Model   string          `json:"model"`
 	Usage   json.RawMessage `json:"usage"`
 }
 
@@ -113,15 +116,22 @@ func parseSessionFile(path string) ([]model.Message, string, string, error) {
 			gitBranch = sl.GitBranch
 		}
 
-		// Capture model from assistant messages
-		if sl.Type == "assistant" && sessionModel == "" && sl.Model != "" {
-			sessionModel = sl.Model
-		}
-
 		// Parse the message payload
 		var payload messagePayload
 		if err := json.Unmarshal(sl.Message, &payload); err != nil {
 			continue
+		}
+
+		// Capture model from assistant messages: prefer top-level `model`
+		// (older Claude) then fall back to `message.model` (newer Claude
+		// Code ~2.1.143+).
+		if sl.Type == "assistant" && sessionModel == "" {
+			switch {
+			case sl.Model != "":
+				sessionModel = sl.Model
+			case payload.Model != "":
+				sessionModel = payload.Model
+			}
 		}
 
 		ts := parseTimestamp(sl.Timestamp)

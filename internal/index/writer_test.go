@@ -705,12 +705,11 @@ func TestUnixOrNil(t *testing.T) {
 	}
 }
 
-// TestEnsureSession_RollbackOnInsertError forces the inner INSERT to fail by
-// closing the prepared statement out from under the writer. The simplest
-// reliable way to trigger an error is to register an explicit constraint:
-// insert a duplicate primary key into tool_calls by giving the same
-// ToolCallID twice in a single session.
-func TestEnsureSession_RollbackOnDuplicateToolID(t *testing.T) {
+// TestEnsureSession_DuplicateToolID_IgnoresSilently verifies that a session
+// containing two ToolCallRow entries with the same ToolCallID writes one row
+// only (the first wins) and does NOT return an error. Observed in real-world
+// long-running Claude sessions; INSERT OR IGNORE is the chosen behaviour.
+func TestEnsureSession_DuplicateToolID_IgnoresSilently(t *testing.T) {
 	idx, _ := newTestIndex(t)
 	dir := t.TempDir()
 	src := makeSourceFile(t, dir, "s.jsonl", []byte("{}"))
@@ -719,17 +718,15 @@ func TestEnsureSession_RollbackOnDuplicateToolID(t *testing.T) {
 			{ToolCallID: "dup", ToolName: "Read", Timestamp: time.Now(), FileOp: "read", FilePath: "/x"},
 			{ToolCallID: "dup", ToolName: "Read", Timestamp: time.Now(), FileOp: "read", FilePath: "/y"},
 		}}
-	err := idx.EnsureSession(src, "conv-dup", false, false, sess)
-	if err == nil {
-		t.Fatal("expected error from duplicate primary key")
+	if err := idx.EnsureSession(src, "conv-dup", false, false, sess); err != nil {
+		t.Fatalf("INSERT OR IGNORE should not return error: %v", err)
 	}
-	// session_metadata row should NOT exist due to rollback.
 	var n int
-	if err := idx.db.QueryRow(`SELECT COUNT(*) FROM session_metadata WHERE conversation_id='conv-dup'`).Scan(&n); err != nil {
+	if err := idx.db.QueryRow(`SELECT COUNT(*) FROM tool_calls WHERE conversation_id='conv-dup'`).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
-	if n != 0 {
-		t.Errorf("session_metadata should be rolled back, got %d", n)
+	if n != 1 {
+		t.Errorf("expected 1 row after dedup, got %d", n)
 	}
 }
 

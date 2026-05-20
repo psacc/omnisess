@@ -122,8 +122,12 @@ func (s *sqliteIndex) rewriteSession(claudeFilePath, conversationID string, mtim
 		if t.IsError {
 			isErr = 1
 		}
+		// INSERT OR IGNORE: some Claude sessions emit duplicate tool_use_id
+		// (observed in long-running sessions with internal retries). The
+		// first row wins; later duplicates are silently dropped rather than
+		// aborting the whole session re-index.
 		if _, err := tx.Exec(
-			`INSERT INTO tool_calls (
+			`INSERT OR IGNORE INTO tool_calls (
 				conversation_id, tool_call_id, tool_name, tool_type, operation_name, provider_name,
 				is_error, ts,
 				file_path, file_op, file_lines_added, file_lines_removed, file_content_size,

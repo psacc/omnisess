@@ -482,8 +482,16 @@ func peekSessionMetadata(path string) (branch, mdl string) {
 		if branch == "" && sl.GitBranch != "" {
 			branch = sl.GitBranch
 		}
-		if mdl == "" && sl.Type == "assistant" && sl.Model != "" {
-			mdl = sl.Model
+		if mdl == "" && sl.Type == "assistant" {
+			switch {
+			case sl.Model != "":
+				mdl = sl.Model
+			default:
+				var p messagePayload
+				if jsonUnmarshalFast(sl.Message, &p) == nil && p.Model != "" {
+					mdl = p.Model
+				}
+			}
 		}
 		if branch != "" && mdl != "" {
 			break
