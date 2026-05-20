@@ -161,7 +161,7 @@ func ToolType(name string) string {
 	return "function"
 }
 
-// nullStr returns nil for empty strings so SQLite stores NULL rather than ''.
+// nullStr returns nil for empty strings so SQLite stores NULL rather than ”.
 func nullStr(s string) interface{} {
 	if s == "" {
 		return nil

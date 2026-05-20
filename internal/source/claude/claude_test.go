@@ -286,6 +286,20 @@ func TestFindSessionFile(t *testing.T) {
 	})
 }
 
+// TestSessionFilePath_Found covers the exported SessionFilePath helper used
+// by cmd/index.go to resolve a session ID to its on-disk JSONL.
+func TestSessionFilePath_Found(t *testing.T) {
+	home := setupFakeHome(t)
+	setHome(t, home)
+	path, err := SessionFilePath("abc12345-1234-5678-9abc-def012345678")
+	if err != nil {
+		t.Fatalf("SessionFilePath: %v", err)
+	}
+	if !strings.HasSuffix(path, "abc12345-1234-5678-9abc-def012345678.jsonl") {
+		t.Errorf("path %q has wrong suffix", path)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // findSessionFileForProject
 // ---------------------------------------------------------------------------

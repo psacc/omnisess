@@ -660,12 +660,12 @@ func TestQueryWindow_FilesError(t *testing.T) {
 func TestToolType(t *testing.T) {
 	cases := map[string]string{
 		"mcp__claude-in-chrome__tabs_create_mcp": "mcp",
-		"Skill":      "skill",
-		"Agent":      "agent",
-		"TaskCreate": "agent",
-		"Grep":       "function",
-		"Read":       "function",
-		"":           "function",
+		"Skill":                                  "skill",
+		"Agent":                                  "agent",
+		"TaskCreate":                             "agent",
+		"Grep":                                   "function",
+		"Read":                                   "function",
+		"":                                       "function",
 	}
 	for in, want := range cases {
 		if got := ToolType(in); got != want {
