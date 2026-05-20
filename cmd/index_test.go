@@ -106,6 +106,11 @@ func TestRunIndex_DefaultPathError(t *testing.T) {
 
 // seedFakeClaudeSessions writes minimal Claude JSONL files + a history.jsonl
 // entry under the jailed $HOME so that runIndexTo iterates real session data.
+//
+// Registers t.Cleanup to remove both the project dir and history.jsonl after
+// the test. Without cleanup, subsequent tests in the same package run (e.g.
+// TestRunStats_WindowEmpty) see leaked sessions via the package-shared
+// jailed $HOME — a non-deterministic CI flake depending on test ordering.
 func seedFakeClaudeSessions(t *testing.T, n int) {
 	t.Helper()
 	home := os.Getenv("HOME")
@@ -119,6 +124,10 @@ func seedFakeClaudeSessions(t *testing.T, n int) {
 		t.Fatal(err)
 	}
 	defer histFile.Close()
+	t.Cleanup(func() {
+		_ = os.RemoveAll(projDir)
+		_ = os.Remove(histPath)
+	})
 	for i := 0; i < n; i++ {
 		id := makeUUID(i)
 		jsonl := `{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"hi"}],"usage":{"input_tokens":1,"output_tokens":1}},"uuid":"a1","timestamp":"2026-05-15T09:00:01.000Z","model":"claude-opus-4-7"}` + "\n"
