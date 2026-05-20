@@ -29,7 +29,7 @@ Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.copilot/, ~/.gemini/
 - **cmd/search.go** — Calls `Source.Search()` in parallel via errgroup, merges results, renders with snippets.
 - **cmd/show.go** — Parses `tool:id` argument, calls `Source.Get()`, renders full conversation.
 - **cmd/active.go** — Calls `Source.List()` with `Active: true` filter.
-- **cmd/digest.go** — `omnisess digest`: prints sessions for a calendar day with full Q&A as Obsidian-compatible markdown. Rune-safe truncation, `$HOME` → `~` substitution.
+- **cmd/digest.go** — `omnisess digest`: prints sessions for a calendar day with full Q&A as Obsidian-compatible markdown. Rune-safe truncation, `$HOME` → `~` substitution. Per-session `Source.Get` full-parse fanned out under errgroup with `min(NumCPU, 16)` concurrency (#54).
 - **cmd/index.go** — `omnisess index --all`: bulk-walks Claude sessions and lazy-populates the transcript SQLite cache. Flags: `--full` (capture payloads), `--rebuild` (drop existing).
 - **cmd/stats.go** — `omnisess stats`: per-session detail (`--session <id>`) or window aggregate (`--window 7d`); JSON output via `--json`. Reads from the index, lazy-populates on cache miss.
 - **cmd/ps.go** — `omnisess ps`: merged ancestor tree of live Claude sessions (macOS only). Renders text tree or JSON via `--json`.
@@ -40,7 +40,7 @@ Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.copilot/, ~/.gemini/
 - **internal/model/session.go** — Pure data types. No dependencies.
 - **internal/source/source.go** — `Source` interface: `Name()`, `List()`, `Get()`, `Search()`.
 - **internal/source/registry.go** — Global source registry. Sources self-register via `init()`.
-- **internal/source/claude/** — Parses `~/.claude/history.jsonl` + session JSONL files.
+- **internal/source/claude/** — Parses `~/.claude/history.jsonl` + session JSONL files. Per-session peek work (file lookup, mtime stat, header peek for branch+model, active probe) inside `List` fanned out under errgroup with `min(NumCPU, 16)` concurrency. `pgrep` "is claude running" probe cached once per `List` call (#54).
 - **internal/source/cursor/** — Reads `ai-tracking.db` for metadata, `agent-transcripts/*.txt` for content.
 - **internal/source/codex/** — Parses `~/.codex/history.jsonl` + session JSONL files.
 - **internal/source/copilot/** — Parses `~/.copilot/session-state/<uuid>/{events.jsonl,vscode.metadata.json}` for GitHub Copilot CLI sessions.

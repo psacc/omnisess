@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -11,10 +13,32 @@ import (
 	"github.com/psacc/omnisess/internal/model"
 	"github.com/psacc/omnisess/internal/source"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 )
 
 // digestMaxTurnChars is the per-turn truncation limit for digest output.
 const digestMaxTurnChars = 2000
+
+// digestFetchConcurrencyCap bounds the per-session full-parse fan-out
+// inside writeDigest. min(NumCPU, 16) — same shape as the claude source's
+// peekConcurrency cap, applied here at the cmd layer because digest's cost
+// dominator is `src.Get` (full JSONL parse) per matched session, not the
+// list-level peek.
+const digestFetchConcurrencyCap = 16
+
+func digestFetchConcurrency() int {
+	return clampDigestConcurrency(runtime.NumCPU())
+}
+
+func clampDigestConcurrency(n int) int {
+	if n > digestFetchConcurrencyCap {
+		return digestFetchConcurrencyCap
+	}
+	if n < 1 {
+		return 1
+	}
+	return n
+}
 
 var digestCmd = &cobra.Command{
 	Use:   "digest",
@@ -83,20 +107,45 @@ func writeDigest(w io.Writer, sessions []model.Session, srcByTool map[model.Tool
 		return
 	}
 
-	rendered := 0
-	for _, sess := range sessions {
+	// Fan out the per-session full-parse (src.Get) calls into index-aligned
+	// slots so the render loop below stays deterministic. This is where the
+	// `digest` command spent the bulk of its wall time on a multi-thousand-
+	// session corpus — every matched session triggers a full JSONL parse.
+	full := make([]*model.Session, len(sessions))
+	g, _ := errgroup.WithContext(context.Background())
+	g.SetLimit(digestFetchConcurrency())
+	for i, sess := range sessions {
+		i, sess := i, sess
 		src, ok := srcByTool[sess.Tool]
 		if !ok {
+			// Leave full[i] as nil; the render loop treats nil as "skip".
 			continue
 		}
-		full, err := src.Get(sess.ID)
-		if err != nil || full == nil {
+		g.Go(func() error {
+			s, err := src.Get(sess.ID)
+			if err != nil || s == nil {
+				// Matches the prior sequential behaviour of silently
+				// skipping failures. Don't propagate the error: a single
+				// session's parse failure must not abort the whole digest.
+				return nil
+			}
+			full[i] = s
+			return nil
+		})
+	}
+	// Per-session fetcher goroutines never return an error (failures are
+	// swallowed to match prior behaviour). Discard the return.
+	_ = g.Wait()
+
+	rendered := 0
+	for _, s := range full {
+		if s == nil {
 			continue
 		}
 		if rendered > 0 {
 			fmt.Fprintln(w, "---")
 		}
-		writeDigestSession(w, full)
+		writeDigestSession(w, s)
 		rendered++
 	}
 }

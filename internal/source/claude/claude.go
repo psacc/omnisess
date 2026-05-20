@@ -2,11 +2,13 @@ package claude
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -14,7 +16,34 @@ import (
 	"github.com/psacc/omnisess/internal/detect"
 	"github.com/psacc/omnisess/internal/model"
 	"github.com/psacc/omnisess/internal/source"
+	"golang.org/x/sync/errgroup"
 )
+
+// peekConcurrencyCap bounds the per-session fan-out inside List and
+// findOrphanSessions. min(NumCPU, 16) keeps us close to disk bandwidth on
+// SSDs while avoiding pathological FD pressure on hosts with very high CPU
+// counts. The bound is also low enough that pgrep — when invoked — does not
+// become a fork-bomb (we cache the per-tool running result anyway, so pgrep
+// fires at most once per List call).
+const peekConcurrencyCap = 16
+
+// peekConcurrency returns min(NumCPU, peekConcurrencyCap), clamped to at
+// least 1. The implementation is split into a pure clampConcurrency helper
+// so the boundary cases (n > cap, n < 1) are unit-testable without messing
+// with runtime.GOMAXPROCS or runtime.NumCPU.
+func peekConcurrency() int {
+	return clampConcurrency(runtime.NumCPU())
+}
+
+func clampConcurrency(n int) int {
+	if n > peekConcurrencyCap {
+		return peekConcurrencyCap
+	}
+	if n < 1 {
+		return 1
+	}
+	return n
+}
 
 func init() {
 	source.Register(&claudeSource{})
@@ -196,6 +225,19 @@ func sessionFileUpdatedAt(path string) (time.Time, bool) {
 	return info.ModTime(), true
 }
 
+// historyPeek holds the per-session metadata gathered concurrently inside
+// the pass-1 fan-out. Each slot is index-aligned with the input
+// `entries []sessionEntry` slice so the post-fan-out sequential filter +
+// builder loop produces deterministic output independent of completion
+// order across goroutines.
+type historyPeek struct {
+	sessionFilePath string
+	updatedAt       time.Time
+	active          bool
+	branch          string
+	model           string
+}
+
 // List returns sessions ordered by most recent first.
 // Messages are NOT populated.
 //
@@ -204,58 +246,60 @@ func sessionFileUpdatedAt(path string) (time.Time, bool) {
 //  2. Scan ~/.claude/projects/*/*.jsonl for orphan session files that are
 //     NOT in history.jsonl (e.g., sessions started from Cursor's embedded
 //     Claude Code or other contexts that skip the history index).
+//
+// The per-session peek work (file lookup, mtime stat, header peek, active
+// detection) inside each pass is fanned out under errgroup.SetLimit so we
+// pay the disk-open syscalls in parallel up to peekConcurrency(). The
+// `claude` process-running probe is cached once per call so we don't spawn
+// N pgrep subprocesses.
 func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 	entries, err := loadHistory()
 	if err != nil {
 		return nil, fmt.Errorf("list claude sessions: %w", err)
 	}
 
+	// Cache the "is claude running" probe once for the duration of this call.
+	// It is a constant for the loop in practice — the user either has the
+	// claude CLI running or doesn't — and saving N pgrep spawns is a chunky
+	// win on a multi-thousand-session corpus.
+	claudeRunning := detect.IsToolRunning("claude")
+
 	// Track seen session IDs to avoid duplicates in the orphan scan.
 	seenIDs := make(map[string]bool, len(entries))
-
-	var sessions []model.Session
-
-	// --- Pass 1: history.jsonl entries ---
 	for _, entry := range entries {
 		seenIDs[entry.SessionID] = true
+	}
 
-		// Find the session file
-		var sessionFilePath string
-		if entry.Project != "" {
-			sessionFilePath = findSessionFileForProject(entry.Project, entry.SessionID)
-		}
-		if sessionFilePath == "" {
-			var err error
-			sessionFilePath, err = findSessionFile(entry.SessionID)
-			if err != nil {
-				log.Printf("warning: finding session file for %s: %v", entry.SessionID, err)
-			}
-		}
+	// --- Pass 1: history.jsonl entries — peek metadata in parallel ---
+	peeks := make([]historyPeek, len(entries))
+	g, _ := errgroup.WithContext(context.Background())
+	g.SetLimit(peekConcurrency())
+	for i := range entries {
+		i := i
+		entry := entries[i]
+		g.Go(func() error {
+			peeks[i] = peekHistoryEntry(entry, claudeRunning)
+			return nil
+		})
+	}
+	// peekHistoryEntry never returns an error — fan-out is error-free by
+	// construction (per-session failures log + degrade gracefully). Discard
+	// the Wait return so the unreachable error branch doesn't sit on the
+	// coverage budget.
+	_ = g.Wait()
 
-		// Refine UpdatedAt from file modification time
-		updatedAt := entry.UpdatedAt
-		if sessionFilePath != "" {
-			if modTime, ok := sessionFileUpdatedAt(sessionFilePath); ok {
-				if modTime.After(updatedAt) {
-					updatedAt = modTime
-				}
-			}
-		}
-
-		// Check active status
-		active := false
-		if sessionFilePath != "" {
-			active = detect.IsSessionActive("claude", sessionFilePath)
-		}
+	var sessions []model.Session
+	for i, entry := range entries {
+		p := peeks[i]
 
 		// Apply filters
-		if opts.Active && !active {
+		if opts.Active && !p.active {
 			continue
 		}
-		if opts.Since > 0 && time.Since(updatedAt) > opts.Since {
+		if opts.Since > 0 && time.Since(p.updatedAt) > opts.Since {
 			continue
 		}
-		if !source.MatchesDate(updatedAt, opts.OnDate) {
+		if !source.MatchesDate(p.updatedAt, opts.OnDate) {
 			continue
 		}
 		if opts.Project != "" && !strings.Contains(entry.Project, opts.Project) {
@@ -273,18 +317,11 @@ func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 			Project:   entry.Project,
 			Title:     preview,
 			StartedAt: entry.StartedAt,
-			UpdatedAt: updatedAt,
-			Active:    active,
+			UpdatedAt: p.updatedAt,
+			Active:    p.active,
 			Preview:   preview,
-		}
-
-		// Try to extract branch and model from the session file header
-		// without parsing the entire file: read just enough for metadata.
-		if sessionFilePath != "" {
-			if branch, mdl := peekSessionMetadata(sessionFilePath); branch != "" || mdl != "" {
-				sess.Branch = branch
-				sess.Model = mdl
-			}
+			Branch:    p.branch,
+			Model:     p.model,
 		}
 
 		sessions = append(sessions, sess)
@@ -293,15 +330,13 @@ func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 	// --- Pass 2: orphan session files on disk ---
 	// findOrphanSessions calls claudeDir() which already succeeded in loadHistory above,
 	// so its error is unreachable in practice — ignore it.
-	orphans, _ := findOrphanSessions(seenIDs)
+	orphans, _ := findOrphanSessions(seenIDs, claudeRunning)
 
 	for _, orphan := range orphans {
 		updatedAt := orphan.UpdatedAt
 
-		active := detect.IsSessionActive("claude", orphan.FilePath)
-
 		// Apply filters
-		if opts.Active && !active {
+		if opts.Active && !orphan.Active {
 			continue
 		}
 		if opts.Since > 0 && time.Since(updatedAt) > opts.Since {
@@ -324,7 +359,7 @@ func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 			Title:     orphan.Preview,
 			StartedAt: orphan.UpdatedAt, // best we have
 			UpdatedAt: updatedAt,
-			Active:    active,
+			Active:    orphan.Active,
 			Preview:   orphan.Preview,
 			Branch:    orphan.Branch,
 			Model:     orphan.Model,
@@ -346,6 +381,55 @@ func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 	return sessions, nil
 }
 
+// peekHistoryEntry performs the per-session I/O work for a single history
+// entry: locate the session file, refine UpdatedAt from file mtime, detect
+// active status (using the pre-cached claudeRunning bool), and read the
+// JSONL header for branch and model. Returns a fully-populated historyPeek;
+// failures degrade gracefully (empty fields) and never error — matches
+// the sequential predecessor's behavior of logging warnings via log.Printf.
+//
+// Safe to call from multiple goroutines: it touches only the local entry,
+// the global file system (read-only), and log.Printf (already safe).
+func peekHistoryEntry(entry sessionEntry, claudeRunning bool) historyPeek {
+	out := historyPeek{updatedAt: entry.UpdatedAt}
+
+	// Find the session file.
+	if entry.Project != "" {
+		out.sessionFilePath = findSessionFileForProject(entry.Project, entry.SessionID)
+	}
+	if out.sessionFilePath == "" {
+		path, err := findSessionFile(entry.SessionID)
+		if err != nil {
+			log.Printf("warning: finding session file for %s: %v", entry.SessionID, err)
+		}
+		out.sessionFilePath = path
+	}
+
+	if out.sessionFilePath == "" {
+		return out
+	}
+
+	// Refine UpdatedAt from file modification time.
+	if modTime, ok := sessionFileUpdatedAt(out.sessionFilePath); ok {
+		if modTime.After(out.updatedAt) {
+			out.updatedAt = modTime
+		}
+	}
+
+	// Check active status — short-circuits to false if claude is not
+	// running, avoiding the per-session pgrep spawn that the unconditional
+	// detect.IsSessionActive would do.
+	if claudeRunning {
+		out.active = detect.IsSessionTreeRecentlyModified(out.sessionFilePath, detect.ActiveThreshold)
+	}
+
+	// Try to extract branch and model from the session file header
+	// without parsing the entire file: read just enough for metadata.
+	out.branch, out.model = peekSessionMetadata(out.sessionFilePath)
+
+	return out
+}
+
 // orphanSession holds data for a session file found on disk but not in history.jsonl.
 type orphanSession struct {
 	SessionID string
@@ -355,12 +439,18 @@ type orphanSession struct {
 	Preview   string
 	Branch    string
 	Model     string
+	Active    bool
 }
 
 // findOrphanSessions scans ~/.claude/projects/*/*.jsonl for session files
 // whose IDs are not in the seenIDs set. For each orphan, it extracts
 // metadata from the file without parsing it fully.
-func findOrphanSessions(seenIDs map[string]bool) ([]orphanSession, error) {
+//
+// The per-orphan peek work (mtime stat, header peek, first-user-message
+// peek, active-status check) is fanned out under errgroup with
+// peekConcurrency() limit. claudeRunning is passed in pre-cached so we
+// don't spawn N pgrep subprocesses for the orphan pass.
+func findOrphanSessions(seenIDs map[string]bool, claudeRunning bool) ([]orphanSession, error) {
 	dir, err := claudeDir()
 	if err != nil {
 		return nil, err
@@ -373,44 +463,66 @@ func findOrphanSessions(seenIDs map[string]bool) ([]orphanSession, error) {
 		return nil, fmt.Errorf("glob orphan sessions: %w", err)
 	}
 
-	var orphans []orphanSession
+	// First pass: filter the glob output to only the orphans (cheap, no I/O).
+	// We update seenIDs sequentially here so the dedup across project dirs is
+	// deterministic regardless of completion order across goroutines.
+	type todo struct {
+		match     string
+		sessionID string
+		project   string
+	}
+	todos := make([]todo, 0, len(matches))
 	for _, match := range matches {
 		sessionID := extractSessionIDFromPath(match)
 		if sessionID == "" || seenIDs[sessionID] {
 			continue
 		}
-
-		// Mark as seen to avoid duplicates across project dirs.
 		seenIDs[sessionID] = true
-
-		// Derive project path from the parent directory name.
 		parentDirName := filepath.Base(filepath.Dir(match))
-		project := projectPathFromDir(parentDirName)
-
-		// Get file modification time for UpdatedAt.
-		updatedAt := time.Time{}
-		if modTime, ok := sessionFileUpdatedAt(match); ok {
-			updatedAt = modTime
-		}
-
-		// Extract metadata (branch, model) from first few lines.
-		branch, mdl := peekSessionMetadata(match)
-
-		// Extract preview from first user message.
-		preview := peekFirstUserMessage(match)
-
-		orphans = append(orphans, orphanSession{
-			SessionID: sessionID,
-			Project:   project,
-			FilePath:  match,
-			UpdatedAt: updatedAt,
-			Preview:   preview,
-			Branch:    branch,
-			Model:     mdl,
+		todos = append(todos, todo{
+			match:     match,
+			sessionID: sessionID,
+			project:   projectPathFromDir(parentDirName),
 		})
 	}
 
+	// Second pass: fan out per-orphan I/O. Result slots are index-aligned with
+	// todos so the output order is deterministic regardless of completion order.
+	orphans := make([]orphanSession, len(todos))
+	g, _ := errgroup.WithContext(context.Background())
+	g.SetLimit(peekConcurrency())
+	for i := range todos {
+		i := i
+		t := todos[i]
+		g.Go(func() error {
+			orphans[i] = peekOrphanFile(t.match, t.sessionID, t.project, claudeRunning)
+			return nil
+		})
+	}
+	// peekOrphanFile never returns an error; discard Wait() so the
+	// unreachable error branch doesn't sit on the coverage budget.
+	_ = g.Wait()
 	return orphans, nil
+}
+
+// peekOrphanFile populates the orphanSession metadata for one file. Safe to
+// call concurrently — touches only its own return value, the filesystem
+// (read-only), and pgrep is never invoked since claudeRunning is pre-cached.
+func peekOrphanFile(match, sessionID, project string, claudeRunning bool) orphanSession {
+	out := orphanSession{
+		SessionID: sessionID,
+		Project:   project,
+		FilePath:  match,
+	}
+	if modTime, ok := sessionFileUpdatedAt(match); ok {
+		out.UpdatedAt = modTime
+	}
+	out.Branch, out.Model = peekSessionMetadata(match)
+	out.Preview = peekFirstUserMessage(match)
+	if claudeRunning {
+		out.Active = detect.IsSessionTreeRecentlyModified(match, detect.ActiveThreshold)
+	}
+	return out
 }
 
 // peekFirstUserMessage reads up to ~20 lines of a session file and returns
