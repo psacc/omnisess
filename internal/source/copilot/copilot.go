@@ -139,6 +139,11 @@ func sessionPassesFilters(project string, updatedAt time.Time, active bool, opts
 	if opts.Since > 0 && time.Since(updatedAt) > opts.Since {
 		return false
 	}
+	// OnDate is the --date filter. Honored by claude/cursor/codex; we apply
+	// it here too so `omnisess digest --tool copilot --date YYYY-MM-DD` works.
+	if !source.MatchesDate(updatedAt, opts.OnDate) {
+		return false
+	}
 	if opts.Project != "" && !strings.Contains(project, opts.Project) {
 		return false
 	}
