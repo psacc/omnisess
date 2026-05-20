@@ -104,14 +104,72 @@ The two stages are separate because branch protection blocks committing at relea
    make release VERSION=v0.2.0
    ```
 
-   This runs `make tag` (idempotent if already done) then calls `gh release create v0.2.0 --generate-notes`. GitHub auto-generates release notes from commits since the previous tag. You can edit the notes on the GitHub UI after creation.
+   This runs `make tag` (idempotent if already done) then calls `gh release create v0.2.0 --generate-notes`. GitHub auto-generates release notes (a flat PR list) from commits since the previous tag.
 
-10. Confirm the release is live:
+10. **Replace the auto-generated notes with a hand-written body.** The flat PR list is a starting point, not the deliverable. Use the [Release-notes template](#release-notes-template) below.
+
+    ```bash
+    gh release edit v0.2.0 --notes-file /tmp/v0.2.0-notes.md
+    ```
+
+11. Confirm the release is live:
 
     ```bash
     git tag --list | sort -V   # confirms local tag
-    gh release view v0.2.0     # confirms GitHub release
+    gh release view v0.2.0     # confirms GitHub release, hand-written notes visible
     ```
+
+## Release-notes template
+
+Every release notes body MUST follow this structure. Skip a section only if it has no entries.
+
+```markdown
+# v<MAJOR.MINOR.PATCH>
+
+<One-paragraph headline — the 1–2 things a reader cares about most.>
+
+## ✨ New features
+
+- One bullet per user-visible addition. Lead with the command/flag/feature, then a one-line "what it does". Link the PR (#NN).
+
+## 🚀 Perf
+
+- One bullet per measurable speedup or memory reduction. Include before/after numbers in qualitative form (e.g. "~50s → single-digit seconds"), no raw corpus aggregates. Link the PR.
+
+## 🐛 Bug fixes
+
+- One bullet per fixed bug. Reference issue + PR. (#issue, #PR)
+
+## Behind the scenes
+
+- Refactors, parser enrichments, CI/coverage improvements that don't change user-visible CLI but matter to contributors. Optional section.
+
+## Known issues
+
+- Issues we're shipping with and tracking as follow-ups. One bullet each, link the GH issue (#NN). Be honest — concealing known issues damages trust more than acknowledging them.
+
+## Upgrade notes
+
+- Backwards-compat statement (default: CLI surface and module API are backwards-compatible).
+- New on-disk artifacts (cache files, config defaults).
+- Anything a user has to do manually (migrations, env vars).
+
+**Full changelog**: https://github.com/psacc/omnisess/compare/v<previous>...v<this>
+```
+
+### Style rules
+
+- **Privacy first.** No real session UUIDs, real corpus aggregates (use "~1k sessions" or "multi-thousand-session corpus", not exact counts), real `/Users/<name>/` paths. The release notes are the most-public artifact of the repo.
+- **Action over implementation.** "Stats command shows tool counts and file activity per session" beats "added new internal/index package and cobra wiring".
+- **Numbers, not adjectives.** "5–11× speedup" beats "much faster". But qualitative ranges, not specific user data.
+- **Link everything.** Every bullet that references work should link the PR and/or issue.
+- **One-paragraph headline.** The summary at the top is the thing many users read and nothing else. Make it count.
+- **Known issues belong in release notes**, not just in the tracker. Surfacing them up-front is part of the contract with users.
+
+### Past releases as examples
+
+- [v0.8.0](https://github.com/psacc/omnisess/releases/tag/v0.8.0) — first release using this template
+- Earlier releases (v0.4.x–v0.7.x) used auto-generated notes only; they remain as-is.
 
 ## Version History
 
