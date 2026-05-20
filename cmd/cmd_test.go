@@ -774,6 +774,93 @@ func TestRunSearch_LimitApplied(t *testing.T) {
 	}
 }
 
+// TestSearchArgs covers the custom Args validator that rejects empty /
+// whitespace-only queries before the corpus is scanned (issue #52).
+// cobra.MinimumNArgs(1) alone is insufficient because cobra treats "" as a
+// present argument.
+func TestSearchArgs(t *testing.T) {
+	tests := []struct {
+		name      string
+		args      []string
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name:      "empty string rejected",
+			args:      []string{""},
+			wantErr:   true,
+			errSubstr: "search query cannot be empty",
+		},
+		{
+			name:      "whitespace-only rejected",
+			args:      []string{"   "},
+			wantErr:   true,
+			errSubstr: "search query cannot be empty",
+		},
+		{
+			name:      "tabs and newlines rejected",
+			args:      []string{"\t\n "},
+			wantErr:   true,
+			errSubstr: "search query cannot be empty",
+		},
+		{
+			name:    "non-empty accepted",
+			args:    []string{"hello"},
+			wantErr: false,
+		},
+		{
+			name:    "non-empty with surrounding whitespace accepted",
+			args:    []string{"  hello  "},
+			wantErr: false,
+		},
+		{
+			name:    "no args rejected by MinimumNArgs",
+			args:    []string{},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := searchArgs(newNoopCmd(), tt.args)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("searchArgs(%q) = nil, want error", tt.args)
+				}
+				if tt.errSubstr != "" && !strings.Contains(err.Error(), tt.errSubstr) {
+					t.Errorf("searchArgs(%q) error = %q, want substring %q",
+						tt.args, err.Error(), tt.errSubstr)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("searchArgs(%q) returned unexpected error: %v", tt.args, err)
+			}
+		})
+	}
+}
+
+// TestSearchCmd_EmptyQuery_E2E exercises the cobra command's Args wiring
+// (rootCmd → searchCmd → searchArgs). Asserts the empty-query rejection
+// reaches the user via cobra without invoking RunE (which would scan disk).
+func TestSearchCmd_EmptyQuery_E2E(t *testing.T) {
+	silenceOutput(t)
+	resetFlags()
+	origArgs := rootCmd.Args // searchCmd shares rootCmd
+	t.Cleanup(func() {
+		rootCmd.SetArgs(nil)
+		_ = origArgs
+	})
+	rootCmd.SetArgs([]string{"search", ""})
+	err := rootCmd.Execute()
+	rootCmd.SetArgs(nil)
+	if err == nil {
+		t.Fatal("`omnisess search \"\"` should return an error, got nil")
+	}
+	if !strings.Contains(err.Error(), "search query cannot be empty") {
+		t.Errorf("error = %q, want substring %q", err.Error(), "search query cannot be empty")
+	}
+}
+
 // ---------------------------------------------------------------------------
 // runShow
 // ---------------------------------------------------------------------------
