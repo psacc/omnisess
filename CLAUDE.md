@@ -32,6 +32,7 @@ internal/source/gemini/     Gemini session parser (stub)
 internal/detect/            Process detection utilities
 internal/output/            Table and JSON formatters
 internal/procsnap/          Live Claude process correlation (macOS only)
+internal/index/             SQLite transcript cache (OTel GenAI-aligned schema)
 docs/references/            File format specs for each tool's local data
 docs/exec-plans/            Implementation plans (active/ and completed/)
 docs/design-docs/           Design decisions
@@ -42,7 +43,9 @@ docs/design-docs/           Design decisions
 1. Each source is a self-contained `Source` interface implementation in its own package
 2. Source packages NEVER import each other
 3. No CGO — pure Go only (`modernc.org/sqlite`, not `mattn/go-sqlite3`)
-4. No indexing — brute-force scan (optimize when slow)
+4. Index is an opt-in derived cache for analytics (`omnisess stats`);
+   core `list`/`search`/`active` paths remain JSONL-scan in PR1; perf
+   routing arrives in PR2 (#54)
 5. Session IDs are always displayed as `<tool>:<id>` (e.g., `claude:5c3f2742`)
 6. Home directory resolved at runtime via `os.UserHomeDir()`
 7. All local data is READ-ONLY — this tool never modifies source files

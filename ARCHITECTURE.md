@@ -16,7 +16,7 @@ Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.copilot/, ~/.gemini/
   internal/model/       (unified Session, Message types)
         │
         ▼
-  cmd/*                 (Cobra commands: list, search, show, active, digest, ps, tui, skills audit, version)
+  cmd/*                 (Cobra commands: list, search, show, active, digest, index, stats, ps, tui, skills audit, version)
         │
         ▼
   internal/output/      (table or JSON rendering)
@@ -30,6 +30,8 @@ Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.copilot/, ~/.gemini/
 - **cmd/show.go** — Parses `tool:id` argument, calls `Source.Get()`, renders full conversation.
 - **cmd/active.go** — Calls `Source.List()` with `Active: true` filter.
 - **cmd/digest.go** — `omnisess digest`: prints sessions for a calendar day with full Q&A as Obsidian-compatible markdown. Rune-safe truncation, `$HOME` → `~` substitution.
+- **cmd/index.go** — `omnisess index --all`: bulk-walks Claude sessions and lazy-populates the transcript SQLite cache. Flags: `--full` (capture payloads), `--rebuild` (drop existing).
+- **cmd/stats.go** — `omnisess stats`: per-session detail (`--session <id>`) or window aggregate (`--window 7d`); JSON output via `--json`. Reads from the index, lazy-populates on cache miss.
 - **cmd/ps.go** — `omnisess ps`: merged ancestor tree of live Claude sessions (macOS only). Renders text tree or JSON via `--json`.
 - **cmd/tui.go** — Interactive terminal UI for browsing sessions.
 - **cmd/version.go** — `omnisess version` / `omnisess --version`: prints the installed module version.
@@ -43,6 +45,7 @@ Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.copilot/, ~/.gemini/
 - **internal/source/codex/** — Parses `~/.codex/history.jsonl` + session JSONL files.
 - **internal/source/copilot/** — Parses `~/.copilot/session-state/<uuid>/{events.jsonl,vscode.metadata.json}` for GitHub Copilot CLI sessions.
 - **internal/source/gemini/** — Stub. Returns empty results.
+- **internal/index/** — SQLite transcript cache. `Index` interface (`EnsureSession`, `QuerySession`, `QueryWindow`), OTel GenAI-aligned schema, `(mtime, size, has_full_payloads)` invalidation key, one transaction per session. Source-agnostic — converts via `SessionFromModel(*model.Session, providerName)`.
 - **internal/detect/process.go** — `IsProcessRunning(name)` and `IsFileRecentlyModified(path, threshold)`.
 - **internal/procsnap/** — Live-process correlation for Claude sessions (macOS only). `Enumerate()` scans `~/.claude/sessions/<PID>.json`, filters alive PIDs, walks ancestors via `ps`. Returns `ErrUnsupported` off darwin.
 - **internal/output/render.go** — `RenderTable()` and `RenderJSON()` dispatched by format flag.
