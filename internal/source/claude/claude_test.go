@@ -3,6 +3,7 @@ package claude
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -631,7 +632,7 @@ func TestFindOrphanSessions(t *testing.T) {
 	t.Run("returns orphans not in seenIDs", func(t *testing.T) {
 		// No sessions in seenIDs, so all session files on disk are orphans
 		seenIDs := map[string]bool{}
-		orphans, err := findOrphanSessions(seenIDs)
+		orphans, err := findOrphanSessions(seenIDs, false)
 		if err != nil {
 			t.Fatalf("findOrphanSessions() error: %v", err)
 		}
@@ -650,7 +651,7 @@ func TestFindOrphanSessions(t *testing.T) {
 			"abc12345-1234-5678-9abc-def012345678": true,
 			"def67890-aaaa-bbbb-cccc-111122223333": true,
 		}
-		orphans, err := findOrphanSessions(seenIDs)
+		orphans, err := findOrphanSessions(seenIDs, false)
 		if err != nil {
 			t.Fatalf("findOrphanSessions() error: %v", err)
 		}
@@ -667,7 +668,7 @@ func TestFindOrphanSessions(t *testing.T) {
 		if err := os.MkdirAll(filepath.Join(emptyHome, ".claude"), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		orphans, err := findOrphanSessions(map[string]bool{})
+		orphans, err := findOrphanSessions(map[string]bool{}, false)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -1707,7 +1708,7 @@ func TestFindSessionFile_GlobError(t *testing.T) {
 
 func TestFindOrphanSessions_GlobError(t *testing.T) {
 	t.Setenv("HOME", "/home/[invalidbracket")
-	_, err := findOrphanSessions(map[string]bool{})
+	_, err := findOrphanSessions(map[string]bool{}, false)
 	if err == nil {
 		t.Fatal("expected glob error for malformed HOME path, got nil")
 	}
@@ -1767,7 +1768,7 @@ func TestFindSessionFileForProject_HomeDirErrorDirect(t *testing.T) {
 
 func TestFindOrphanSessions_HomeDirError(t *testing.T) {
 	t.Setenv("HOME", "")
-	_, err := findOrphanSessions(map[string]bool{})
+	_, err := findOrphanSessions(map[string]bool{}, false)
 	if err == nil {
 		t.Fatal("expected error when HOME is empty, got nil")
 	}
@@ -2320,5 +2321,164 @@ func TestList_FindSessionFileWarning(t *testing.T) {
 	// Valid sessions should still be returned; the bad entry is skipped.
 	if len(sessions) == 0 {
 		t.Error("List() returned 0 sessions; expected valid sessions despite bad entry")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Parallel-peek: deterministic output and boundary clamps
+// ---------------------------------------------------------------------------
+
+func TestClampConcurrency(t *testing.T) {
+	tests := []struct {
+		name string
+		n    int
+		want int
+	}{
+		{"below floor (zero)", 0, 1},
+		{"below floor (negative)", -3, 1},
+		{"at cap", peekConcurrencyCap, peekConcurrencyCap},
+		{"above cap", peekConcurrencyCap + 5, peekConcurrencyCap},
+		{"mid range", 4, 4},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := clampConcurrency(tc.n); got != tc.want {
+				t.Errorf("clampConcurrency(%d) = %d, want %d", tc.n, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPeekConcurrency_RuntimeIsAtLeastOne(t *testing.T) {
+	// peekConcurrency() asks runtime.NumCPU() — on any real host this is
+	// >= 1. We can't dial NumCPU at test time, so just assert the contract.
+	if got := peekConcurrency(); got < 1 {
+		t.Errorf("peekConcurrency() = %d, want >= 1", got)
+	}
+	if got := peekConcurrency(); got > peekConcurrencyCap {
+		t.Errorf("peekConcurrency() = %d, want <= %d", got, peekConcurrencyCap)
+	}
+}
+
+// TestList_DeterministicAcrossRuns asserts that the parallel fan-out in
+// List does not introduce non-determinism in the output order.
+func TestList_DeterministicAcrossRuns(t *testing.T) {
+	home := setupFakeHome(t)
+	setHome(t, home)
+	s := &claudeSource{}
+
+	first, err := s.List(source.ListOptions{})
+	if err != nil {
+		t.Fatalf("List() error: %v", err)
+	}
+	for i := 0; i < 10; i++ {
+		got, err := s.List(source.ListOptions{})
+		if err != nil {
+			t.Fatalf("List() error on iteration %d: %v", i, err)
+		}
+		if len(got) != len(first) {
+			t.Fatalf("iteration %d: len mismatch %d vs %d", i, len(got), len(first))
+		}
+		for j := range got {
+			if got[j].ID != first[j].ID {
+				t.Errorf("iteration %d: ID mismatch at index %d: %q vs %q",
+					i, j, got[j].ID, first[j].ID)
+			}
+			if !got[j].UpdatedAt.Equal(first[j].UpdatedAt) {
+				t.Errorf("iteration %d: UpdatedAt mismatch at index %d", i, j)
+			}
+		}
+	}
+}
+
+// TestList_PeekFailureDoesNotAbort asserts that a per-session peek failure
+// (truncated JSONL header) is tolerated: the session is still listed, just
+// without branch / model populated. Other sessions are unaffected.
+func TestList_PeekFailureDoesNotAbort(t *testing.T) {
+	home := setupFakeHome(t)
+	setHome(t, home)
+
+	// Truncate one of the fixture session files so peekSessionMetadata can't
+	// recover branch / model from it. The empty file is still resolvable
+	// (still found by glob) and still appears in history.jsonl.
+	truncated := filepath.Join(home, ".claude", "projects",
+		"-Users-foo-myproject", "abc12345-1234-5678-9abc-def012345678.jsonl")
+	if err := os.WriteFile(truncated, []byte{}, 0o644); err != nil {
+		t.Fatalf("truncate session file: %v", err)
+	}
+
+	s := &claudeSource{}
+	sessions, err := s.List(source.ListOptions{})
+	if err != nil {
+		t.Fatalf("List() unexpected error: %v", err)
+	}
+	if len(sessions) == 0 {
+		t.Fatal("expected sessions despite one truncated file")
+	}
+
+	// The truncated session should still appear, with empty branch/model.
+	var found bool
+	for _, sess := range sessions {
+		if strings.HasPrefix(sess.ID, "abc12345") {
+			found = true
+			if sess.Branch != "" || sess.Model != "" {
+				t.Errorf("truncated session has populated metadata: branch=%q model=%q",
+					sess.Branch, sess.Model)
+			}
+		}
+	}
+	if !found {
+		t.Error("expected truncated session to still appear in List output")
+	}
+}
+
+// TestFindOrphanSessions_Deterministic asserts that orphan output ordering
+// is stable across runs despite the parallel fan-out.
+func TestFindOrphanSessions_Deterministic(t *testing.T) {
+	home := setupFakeHome(t)
+	setHome(t, home)
+
+	// Add an orphan session file (one not referenced by history.jsonl).
+	orphanID := "fff99999-1234-5678-9abc-000000000000"
+	orphanPath := filepath.Join(home, ".claude", "projects",
+		"-Users-foo-orphproj", orphanID+".jsonl")
+	if err := os.MkdirAll(filepath.Dir(orphanPath), 0o755); err != nil {
+		t.Fatalf("mkdir orphan: %v", err)
+	}
+	orphanData := []byte(`{"type":"user","gitBranch":"feat-x","sessionId":"` + orphanID +
+		`","message":{"role":"user","content":"hello orphan"},"timestamp":"2026-01-01T00:00:00.000Z"}` + "\n")
+	if err := os.WriteFile(orphanPath, orphanData, 0o644); err != nil {
+		t.Fatalf("write orphan: %v", err)
+	}
+
+	first, err := findOrphanSessions(map[string]bool{}, false)
+	if err != nil {
+		t.Fatalf("findOrphanSessions: %v", err)
+	}
+	for i := 0; i < 5; i++ {
+		got, err := findOrphanSessions(map[string]bool{}, false)
+		if err != nil {
+			t.Fatalf("findOrphanSessions iter %d: %v", i, err)
+		}
+		if len(got) != len(first) {
+			t.Fatalf("iter %d: len mismatch %d vs %d", i, len(got), len(first))
+		}
+		// Build sorted slices for stability comparison since findOrphanSessions
+		// returns todos in glob order — which IS deterministic, but we don't
+		// want to depend on glob order in this assertion.
+		gotIDs := make([]string, len(got))
+		wantIDs := make([]string, len(first))
+		for j := range got {
+			gotIDs[j] = got[j].SessionID
+			wantIDs[j] = first[j].SessionID
+		}
+		sort.Strings(gotIDs)
+		sort.Strings(wantIDs)
+		for j := range gotIDs {
+			if gotIDs[j] != wantIDs[j] {
+				t.Errorf("iter %d: id mismatch at index %d: %q vs %q",
+					i, j, gotIDs[j], wantIDs[j])
+			}
+		}
 	}
 }

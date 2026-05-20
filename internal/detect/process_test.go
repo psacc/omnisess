@@ -155,7 +155,7 @@ func TestIsSessionTreeRecentlyModified(t *testing.T) {
 		if err := os.WriteFile(sessionFile, []byte("{}"), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		if !isSessionTreeRecentlyModified(sessionFile, time.Hour) {
+		if !IsSessionTreeRecentlyModified(sessionFile, time.Hour) {
 			t.Error("expected true when main session file is recent")
 		}
 	})
@@ -181,7 +181,7 @@ func TestIsSessionTreeRecentlyModified(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if !isSessionTreeRecentlyModified(sessionFile, 5*time.Minute) {
+		if !IsSessionTreeRecentlyModified(sessionFile, 5*time.Minute) {
 			t.Error("expected true when a subagent file is recent")
 		}
 	})
@@ -208,7 +208,7 @@ func TestIsSessionTreeRecentlyModified(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if isSessionTreeRecentlyModified(sessionFile, 5*time.Minute) {
+		if IsSessionTreeRecentlyModified(sessionFile, 5*time.Minute) {
 			t.Error("expected false when all files are old")
 		}
 	})
@@ -223,21 +223,21 @@ func TestIsSessionTreeRecentlyModified(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if isSessionTreeRecentlyModified(sessionFile, 5*time.Minute) {
+		if IsSessionTreeRecentlyModified(sessionFile, 5*time.Minute) {
 			t.Error("expected false when main file is old and no subagents exist")
 		}
 	})
 
 	t.Run("nonexistent session file, no subagents", func(t *testing.T) {
 		sessionFile := filepath.Join(dir, "nonexistent.jsonl")
-		if isSessionTreeRecentlyModified(sessionFile, time.Hour) {
+		if IsSessionTreeRecentlyModified(sessionFile, time.Hour) {
 			t.Error("expected false for nonexistent session file with no subagents")
 		}
 	})
 }
 
 // TestIsSessionActive_ToolRunning exercises the branch where IsToolRunning
-// returns true so that isSessionTreeRecentlyModified is also evaluated.
+// returns true so that IsSessionTreeRecentlyModified is also evaluated.
 // We inject toolRunnerFn so no real process needs to be running.
 func TestIsSessionActive_ToolRunning(t *testing.T) {
 	orig := toolRunnerFn
