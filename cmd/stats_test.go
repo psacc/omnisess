@@ -74,6 +74,44 @@ func TestRunStats_SessionNotFound(t *testing.T) {
 	}
 }
 
+// TestRunStats_SessionNotFound_PreservesPrefix asserts that the
+// "session not found" error includes the original tool-qualified arg
+// (e.g. "unknown:abc") rather than the post-split bare ID ("abc").
+// Regression guard for #62.
+func TestRunStats_SessionNotFound_PreservesPrefix(t *testing.T) {
+	withTempIndex(t)
+	resetFlags()
+	resetStatsFlags()
+	const arg = "unknown:abc"
+	flagStatsSession = arg
+	var w, wErr strings.Builder
+	err := runStatsTo(&w, &wErr)
+	if err == nil {
+		t.Fatalf("expected session-not-found error")
+	}
+	if !strings.Contains(err.Error(), arg) {
+		t.Errorf("error should preserve qualified ID %q, got: %v", arg, err)
+	}
+}
+
+// TestRunStats_SessionNotFound_BareID covers the no-prefix branch:
+// when the user passes just a bare ID, the error echoes that same string.
+func TestRunStats_SessionNotFound_BareID(t *testing.T) {
+	withTempIndex(t)
+	resetFlags()
+	resetStatsFlags()
+	const arg = "no-such-bare-id"
+	flagStatsSession = arg
+	var w, wErr strings.Builder
+	err := runStatsTo(&w, &wErr)
+	if err == nil {
+		t.Fatalf("expected session-not-found error")
+	}
+	if !strings.Contains(err.Error(), arg) {
+		t.Errorf("error should echo bare ID %q, got: %v", arg, err)
+	}
+}
+
 func TestRunStats_OpenIndexError(t *testing.T) {
 	t.Setenv("OMNISESS_INDEX_PATH", "")
 	t.Setenv("HOME", "")
