@@ -110,6 +110,18 @@ func runStatsWindow(w, wErr io.Writer, idx index.Index) error {
 	if err != nil {
 		return fmt.Errorf("invalid --window: %w", err)
 	}
+	// Validate --tool BEFORE the lazy-index pass so an unknown value
+	// fails fast without doing useless work. Only 'claude' is supported
+	// in PR1; cursor/codex/copilot/gemini land in PR2.
+	provider := ""
+	switch flagStatsTool {
+	case "":
+		// no filter
+	case "claude":
+		provider = "anthropic"
+	default:
+		return fmt.Errorf("--tool %q not supported in PR1; only 'claude' is implemented", flagStatsTool)
+	}
 	end := time.Now()
 	start := end.Add(-dur)
 
@@ -119,10 +131,6 @@ func runStatsWindow(w, wErr io.Writer, idx index.Index) error {
 		lazyIndexWindow(wErr, src, idx, dur, flagStatsFull)
 	}
 
-	provider := ""
-	if flagStatsTool == "claude" {
-		provider = "anthropic"
-	}
 	agg, err := idx.QueryWindow(start, end, provider)
 	if err != nil {
 		return fmt.Errorf("query window: %w", err)

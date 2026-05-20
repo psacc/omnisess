@@ -59,10 +59,29 @@ func Open(path string) (Index, error) {
 	// sql.Open with a registered driver only errors on unknown driver name,
 	// which is unreachable here ("sqlite" is registered via the modernc.org
 	// blank import). Any real connection failure surfaces at migrate() time.
-	db, _ := sql.Open("sqlite", path+"?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)")
+	//
+	// _busy_timeout=5000: wait up to 5s for a writer lock before SQLITE_BUSY.
+	// Required because Go's database/sql pool may open multiple connections
+	// concurrently (e.g. bulk `index --all` doing lookup-then-write on
+	// adjacent connections), and the default 0ms timeout surfaces BUSY
+	// errors as soon as two connections contend.
+	db, _ := sql.Open("sqlite", path+"?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
 	if err := migrate(db); err != nil {
 		_ = db.Close()
 		return nil, err
+	}
+	// Tighten file permissions to 0o600 (defense in depth). The parent
+	// directory is already 0o700, but if the file is ever moved or copied
+	// out (backup, debug snapshot, …) its default umask-derived mode of
+	// 0o644 would leak the cache. Apply to the WAL/SHM sidecars if they
+	// already exist; otherwise leave it — SQLite recreates them on demand
+	// and the next Open() will catch them. Best-effort throughout.
+	_ = os.Chmod(path, 0o600)
+	for _, suffix := range []string{"-wal", "-shm"} {
+		side := path + suffix
+		if _, err := os.Stat(side); err == nil {
+			_ = os.Chmod(side, 0o600)
+		}
 	}
 	return &sqliteIndex{db: db, path: path}, nil
 }

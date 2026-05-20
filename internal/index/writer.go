@@ -75,9 +75,19 @@ func (s *sqliteIndex) rewriteSession(claudeFilePath, conversationID string, mtim
 		return fmt.Errorf("delete session_metadata: %w", err)
 	}
 
-	toolCallCount := len(sess.ToolCalls)
+	// Deduplicate ToolCalls by ToolCallID *before* counting and inserting.
+	// Some Claude sessions emit duplicate tool_use_id rows (observed in long-
+	// running sessions with internal retries). The downstream INSERT uses
+	// "OR IGNORE" with PK (conversation_id, tool_call_id), so without dedup
+	// the per-session counters in session_metadata (tool_call_count,
+	// error_count) would exceed the actual COUNT(*) / SUM(is_error) in
+	// tool_calls — violating the spec requirement that they roll up the
+	// stored rows. First occurrence wins (matches INSERT OR IGNORE semantics).
+	dedupCalls := dedupToolCallsByID(sess.ToolCalls)
+
+	toolCallCount := len(dedupCalls)
 	errorCount := 0
-	for _, t := range sess.ToolCalls {
+	for _, t := range dedupCalls {
 		if t.IsError {
 			errorCount++
 		}
@@ -108,7 +118,7 @@ func (s *sqliteIndex) rewriteSession(claudeFilePath, conversationID string, mtim
 		return fmt.Errorf("insert session_metadata: %w", err)
 	}
 
-	for _, t := range sess.ToolCalls {
+	for _, t := range dedupCalls {
 		op := t.OperationName
 		if op == "" {
 			op = "execute_tool"
@@ -122,10 +132,9 @@ func (s *sqliteIndex) rewriteSession(claudeFilePath, conversationID string, mtim
 		if t.IsError {
 			isErr = 1
 		}
-		// INSERT OR IGNORE: some Claude sessions emit duplicate tool_use_id
-		// (observed in long-running sessions with internal retries). The
-		// first row wins; later duplicates are silently dropped rather than
-		// aborting the whole session re-index.
+		// INSERT OR IGNORE: belt-and-braces — dedupToolCallsByID above
+		// already strips duplicate ToolCallIDs in-process; the SQL OR IGNORE
+		// is the last line of defence if a future code path skips dedup.
 		if _, err := tx.Exec(
 			`INSERT OR IGNORE INTO tool_calls (
 				conversation_id, tool_call_id, tool_name, tool_type, operation_name, provider_name,
@@ -146,6 +155,31 @@ func (s *sqliteIndex) rewriteSession(claudeFilePath, conversationID string, mtim
 	}
 
 	return tx.Commit()
+}
+
+// dedupToolCallsByID returns a slice containing only the first occurrence of
+// each non-empty ToolCallID, preserving input order. Rows with an empty
+// ToolCallID are kept as-is (the INSERT OR IGNORE downstream will still
+// guard against PK collisions, but in practice every Claude tool_use carries
+// an id). This must run BEFORE the per-session counters (tool_call_count,
+// error_count) are computed so the headline numbers match the actual
+// tool_calls row count after INSERT OR IGNORE.
+func dedupToolCallsByID(rows []ToolCallRow) []ToolCallRow {
+	if len(rows) == 0 {
+		return rows
+	}
+	seen := make(map[string]struct{}, len(rows))
+	out := make([]ToolCallRow, 0, len(rows))
+	for _, r := range rows {
+		if r.ToolCallID != "" {
+			if _, dup := seen[r.ToolCallID]; dup {
+				continue
+			}
+			seen[r.ToolCallID] = struct{}{}
+		}
+		out = append(out, r)
+	}
+	return out
 }
 
 // ToolType classifies a tool name per design.md:

@@ -162,6 +162,10 @@ omnisess index --all --full
 omnisess stats --session claude:5c3f2742 --full
 ```
 
+Even without `--full`, the index records file paths touched by Read/Write/Edit
+tool calls (and your home directory often appears in them) — treat the cache
+file as user-private data.
+
 The index file lives at `os.UserCacheDir() + /omnisess/index.sqlite` by
 default; override via `OMNISESS_INDEX_PATH`.
 

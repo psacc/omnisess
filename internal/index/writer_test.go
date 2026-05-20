@@ -730,6 +730,65 @@ func TestEnsureSession_DuplicateToolID_IgnoresSilently(t *testing.T) {
 	}
 }
 
+// TestEnsureSession_DuplicateToolID_CountersMatchPostDedup verifies the
+// session_metadata counter columns (tool_call_count, error_count) equal the
+// post-dedup COUNT(*) / SUM(is_error) of tool_calls — i.e. dedup happens
+// BEFORE counters are computed. This guards against a regression where
+// counters would be inflated by INSERT OR IGNORE silently dropping rows.
+func TestEnsureSession_DuplicateToolID_CountersMatchPostDedup(t *testing.T) {
+	idx, _ := newTestIndex(t)
+	dir := t.TempDir()
+	src := makeSourceFile(t, dir, "s.jsonl", []byte("{}"))
+	now := time.Now()
+	// 5 input rows but only 3 unique IDs:
+	//   - "a" appears once, IsError=true
+	//   - "b" appears twice (first IsError=false wins)
+	//   - "c" appears twice (first IsError=true wins, second IsError=false dropped)
+	// Post-dedup expectation: tool_call_count=3, error_count=2
+	sess := &Session{ConversationID: "conv-cdup", ProviderName: "anthropic",
+		ToolCalls: []ToolCallRow{
+			{ToolCallID: "a", ToolName: "Read", IsError: true, Timestamp: now, FileOp: "read", FilePath: "/a"},
+			{ToolCallID: "b", ToolName: "Read", IsError: false, Timestamp: now, FileOp: "read", FilePath: "/b1"},
+			{ToolCallID: "b", ToolName: "Read", IsError: true, Timestamp: now, FileOp: "read", FilePath: "/b2"},
+			{ToolCallID: "c", ToolName: "Read", IsError: true, Timestamp: now, FileOp: "read", FilePath: "/c1"},
+			{ToolCallID: "c", ToolName: "Read", IsError: false, Timestamp: now, FileOp: "read", FilePath: "/c2"},
+		}}
+	if err := idx.EnsureSession(src, "conv-cdup", false, false, sess); err != nil {
+		t.Fatalf("EnsureSession: %v", err)
+	}
+
+	// Read the headline counters back from session_metadata.
+	var hdrCount, hdrErrs int
+	if err := idx.db.QueryRow(
+		`SELECT tool_call_count, error_count FROM session_metadata WHERE conversation_id='conv-cdup'`,
+	).Scan(&hdrCount, &hdrErrs); err != nil {
+		t.Fatal(err)
+	}
+
+	// Compute the actual stored row count & error count.
+	var rowCount, rowErrs int
+	if err := idx.db.QueryRow(
+		`SELECT COUNT(*), COALESCE(SUM(is_error), 0) FROM tool_calls WHERE conversation_id='conv-cdup'`,
+	).Scan(&rowCount, &rowErrs); err != nil {
+		t.Fatal(err)
+	}
+
+	if hdrCount != rowCount {
+		t.Errorf("tool_call_count mismatch: header=%d, COUNT(*)=%d", hdrCount, rowCount)
+	}
+	if hdrErrs != rowErrs {
+		t.Errorf("error_count mismatch: header=%d, SUM(is_error)=%d", hdrErrs, rowErrs)
+	}
+	// And the expected exact numbers (first-wins semantics).
+	if rowCount != 3 {
+		t.Errorf("expected 3 stored rows after dedup, got %d", rowCount)
+	}
+	if rowErrs != 2 {
+		// "a" IsError=true + "c" first-row IsError=true = 2.
+		t.Errorf("expected 2 error rows after dedup, got %d", rowErrs)
+	}
+}
+
 // TestSessionFromModel covers the model→index Session conversion.
 func TestSessionFromModel(t *testing.T) {
 	if SessionFromModel(nil, "anthropic") != nil {

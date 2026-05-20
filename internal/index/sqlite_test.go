@@ -140,3 +140,60 @@ func TestMigrate_ClosedDB(t *testing.T) {
 func openRawSQLite(path string) (*sql.DB, error) {
 	return sql.Open("sqlite", path)
 }
+
+// TestOpen_DBFileMode0o600 verifies the DB file (and its WAL/SHM sidecars
+// once SQLite materializes them) ends up at 0o600. Defense-in-depth against
+// the cache file being copied out of its 0o700 parent directory and
+// surfacing world-readable on another filesystem.
+func TestOpen_DBFileMode0o600(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix mode bits don't map cleanly on Windows")
+	}
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "index.sqlite")
+	idx, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer idx.Close()
+	// Trigger at least one write so the WAL/SHM files exist.
+	if _, err := idx.(*sqliteIndex).db.Exec(
+		`INSERT INTO schema_version (version) VALUES (99)`,
+	); err != nil {
+		// schema_version may have UNIQUE; fall back to a harmless write.
+		if _, err2 := idx.(*sqliteIndex).db.Exec(`SELECT 1`); err2 != nil {
+			t.Fatalf("touch db: %v / %v", err, err2)
+		}
+	}
+	st, err := os.Stat(dbPath)
+	if err != nil {
+		t.Fatalf("stat %s: %v", dbPath, err)
+	}
+	if st.Mode().Perm() != 0o600 {
+		t.Errorf("db file perm = %v, want 0o600", st.Mode().Perm())
+	}
+	// Re-open the existing file to exercise the sidecar-chmod branch.
+	// First close so the WAL/SHM are flushed and we can chmod them looser.
+	_ = idx.Close()
+	for _, suffix := range []string{"-wal", "-shm"} {
+		side := dbPath + suffix
+		if _, err := os.Stat(side); err == nil {
+			_ = os.Chmod(side, 0o644)
+		}
+	}
+	idx2, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open (reopen): %v", err)
+	}
+	defer idx2.Close()
+	for _, suffix := range []string{"-wal", "-shm"} {
+		side := dbPath + suffix
+		st, err := os.Stat(side)
+		if err != nil {
+			continue // sidecar absent — acceptable
+		}
+		if st.Mode().Perm() != 0o600 {
+			t.Errorf("%s perm = %v, want 0o600", side, st.Mode().Perm())
+		}
+	}
+}

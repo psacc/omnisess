@@ -143,6 +143,24 @@ func TestRunStats_WindowToolFilter(t *testing.T) {
 	}
 }
 
+// TestRunStats_WindowUnknownTool ensures --tool with an unsupported value
+// produces a clear error instead of silently degrading to "no filter".
+func TestRunStats_WindowUnknownTool(t *testing.T) {
+	withTempIndex(t)
+	resetFlags()
+	resetStatsFlags()
+	flagStatsWindow = "1d"
+	flagStatsTool = "cursor"
+	var w, wErr strings.Builder
+	err := runStatsTo(&w, &wErr)
+	if err == nil {
+		t.Fatal("expected error for --tool cursor")
+	}
+	if !strings.Contains(err.Error(), `--tool "cursor" not supported`) {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
 func TestRunStats_SessionHappyPath(t *testing.T) {
 	withTempIndex(t)
 	seedFakeClaudeSessions(t, 1)
