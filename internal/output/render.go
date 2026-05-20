@@ -42,17 +42,28 @@ func sanitizeSession(s *model.Session) model.Session {
 		out.Messages = make([]model.Message, len(s.Messages))
 		for i, m := range s.Messages {
 			out.Messages[i] = model.Message{
-				Role:      m.Role,
-				Content:   sanitizeString(m.Content),
-				Timestamp: m.Timestamp,
+				Role:                          m.Role,
+				Content:                       sanitizeString(m.Content),
+				Timestamp:                     m.Timestamp,
+				UsageInputTokens:              m.UsageInputTokens,
+				UsageOutputTokens:             m.UsageOutputTokens,
+				UsageCacheCreationInputTokens: m.UsageCacheCreationInputTokens,
+				UsageCacheReadInputTokens:     m.UsageCacheReadInputTokens,
 			}
 			if len(m.ToolCalls) > 0 {
 				out.Messages[i].ToolCalls = make([]model.ToolCall, len(m.ToolCalls))
 				for j, tc := range m.ToolCalls {
 					out.Messages[i].ToolCalls[j] = model.ToolCall{
-						Name:   sanitizeString(tc.Name),
-						Input:  sanitizeString(tc.Input),
-						Output: sanitizeString(tc.Output),
+						Name:             sanitizeString(tc.Name),
+						Input:            sanitizeString(tc.Input),
+						Output:           sanitizeString(tc.Output),
+						ID:               sanitizeString(tc.ID),
+						IsError:          tc.IsError,
+						FilePath:         sanitizeString(tc.FilePath),
+						FileOp:           sanitizeString(tc.FileOp),
+						FileLinesAdded:   tc.FileLinesAdded,
+						FileLinesRemoved: tc.FileLinesRemoved,
+						FileContentSize:  tc.FileContentSize,
 					}
 				}
 			}

@@ -110,6 +110,8 @@ claude:5c3f2742  ~/prj/myapp  (process alive, modified 47s ago)
 | `omnisess active`             | Show sessions detected as currently running       |
 | `omnisess show <tool:id>`     | Show full detail for a single session             |
 | `omnisess digest`             | Print a calendar day's sessions as Obsidian-compatible markdown |
+| `omnisess index --all`        | Bulk-populate the transcript SQLite index (Claude only in v1) |
+| `omnisess stats`              | Tool counts + file activity stats from the transcript index |
 | `omnisess ps`                 | Live Claude process tree with ancestor lineage (macOS) |
 | `omnisess tui`                | Interactive terminal UI for browsing sessions     |
 | `omnisess version`            | Print the installed omnisess version              |
@@ -128,6 +130,48 @@ These flags are accepted by every subcommand:
 | `--limit N` | Max results (`0` = unlimited) |
 | `--project <substring>` | Filter by project path substring |
 | `--exclude-project <substring>` | Exclude project path substring (repeatable; also via `OMNISESS_EXCLUDE_PROJECTS` env var, comma-separated) |
+
+---
+
+## Stats (transcript index)
+
+`omnisess` maintains a derived SQLite cache of per-tool-call metadata
+(`Read`/`Write`/`Edit` file paths, line counts, token usage, error flags).
+The cache is OpenTelemetry GenAI-aligned: column names map 1:1 to OTel
+attributes (`tool_call_id`, `provider_name`, `request_model`, …).
+
+```bash
+# Bulk-populate the cache once (also runs lazily on first stats call):
+omnisess index --all
+
+# Tool counts + file activity for the last 7 days (default window):
+omnisess stats
+
+# Aggregate over a different window:
+omnisess stats --window 30d
+
+# Per-session detail:
+omnisess stats --session claude:5c3f2742
+
+# Machine-readable:
+omnisess stats --window 7d --json | jq .
+
+# Capture full arguments + result payloads (privacy-sensitive — Bash commands
+# and Write/Edit content may contain secrets):
+omnisess index --all --full
+omnisess stats --session claude:5c3f2742 --full
+```
+
+Even without `--full`, the index records file paths touched by Read/Write/Edit
+tool calls (and your home directory often appears in them) — treat the cache
+file as user-private data.
+
+The index file lives at `os.UserCacheDir() + /omnisess/index.sqlite` by
+default; override via `OMNISESS_INDEX_PATH`.
+
+**Caveat for v0.7+:** the index is currently used only by `omnisess stats`.
+`list`/`active`/`digest`/`search` still re-parse JSONL on every invocation;
+PR2 will route them through the index (issue #54).
 
 ---
 

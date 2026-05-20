@@ -143,6 +143,15 @@ func loadHistory() ([]sessionEntry, error) {
 	return entries, nil
 }
 
+// SessionFilePath returns the absolute on-disk JSONL path for the given
+// Claude session ID, or an empty string if no matching file is found. The
+// index package uses this to obtain the (mtime, size) cache key. Exported
+// so other internal packages can locate the underlying file without
+// duplicating the projects-glob heuristic.
+func SessionFilePath(sessionID string) (string, error) {
+	return findSessionFile(sessionID)
+}
+
 // findSessionFile locates the JSONL file for a given session ID by globbing
 // across project directories.
 func findSessionFile(sessionID string) (string, error) {
@@ -473,8 +482,16 @@ func peekSessionMetadata(path string) (branch, mdl string) {
 		if branch == "" && sl.GitBranch != "" {
 			branch = sl.GitBranch
 		}
-		if mdl == "" && sl.Type == "assistant" && sl.Model != "" {
-			mdl = sl.Model
+		if mdl == "" && sl.Type == "assistant" {
+			switch {
+			case sl.Model != "":
+				mdl = sl.Model
+			default:
+				var p messagePayload
+				if jsonUnmarshalFast(sl.Message, &p) == nil && p.Model != "" {
+					mdl = p.Model
+				}
+			}
 		}
 		if branch != "" && mdl != "" {
 			break

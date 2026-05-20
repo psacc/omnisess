@@ -245,6 +245,45 @@ func (d *digestGetNilSrc) Search(_ string, _ source.ListOptions) ([]model.Search
 	return nil, nil
 }
 
+// fakeClaudeSrc returns a model.Session from Get regardless of ID. Used by
+// cmd/index_test.go to drive indexOneSession through the EnsureSession step
+// while still resolving to a real on-disk file via claude.SessionFilePath
+// (the test seeds the fake JSONL file under jailed $HOME).
+type fakeClaudeSrc struct{}
+
+func (f *fakeClaudeSrc) Name() model.Tool { return model.ToolClaude }
+func (f *fakeClaudeSrc) List(_ source.ListOptions) ([]model.Session, error) {
+	return nil, nil
+}
+func (f *fakeClaudeSrc) Get(id string) (*model.Session, error) {
+	return &model.Session{ID: id, Tool: model.ToolClaude}, nil
+}
+func (f *fakeClaudeSrc) Search(_ string, _ source.ListOptions) ([]model.SearchResult, error) {
+	return nil, nil
+}
+
+// fakeClaudeMultiSrc returns multiple sessions from List; each Get returns
+// a populated model.Session keyed by id. Used to drive indexSourceTo
+// through N iterations cheaply.
+type fakeClaudeMultiSrc struct {
+	ids []string
+}
+
+func (f *fakeClaudeMultiSrc) Name() model.Tool { return model.ToolClaude }
+func (f *fakeClaudeMultiSrc) List(_ source.ListOptions) ([]model.Session, error) {
+	out := make([]model.Session, len(f.ids))
+	for i, id := range f.ids {
+		out[i] = model.Session{ID: id, Tool: model.ToolClaude}
+	}
+	return out, nil
+}
+func (f *fakeClaudeMultiSrc) Get(id string) (*model.Session, error) {
+	return &model.Session{ID: id, Tool: model.ToolClaude}, nil
+}
+func (f *fakeClaudeMultiSrc) Search(_ string, _ source.ListOptions) ([]model.SearchResult, error) {
+	return nil, nil
+}
+
 func init() {
 	source.Register(&errSource{})
 	source.Register(&activeSource{})

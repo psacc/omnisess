@@ -85,12 +85,37 @@ type Message struct {
 	Content   string
 	Timestamp time.Time
 	ToolCalls []ToolCall
+
+	// Usage* fields are populated from assistant-message `usage` blocks
+	// in the source JSONL. They are 0 for user/tool/system messages and
+	// for sources that do not report token usage.
+	UsageInputTokens              int
+	UsageOutputTokens             int
+	UsageCacheCreationInputTokens int
+	UsageCacheReadInputTokens     int
 }
 
 type ToolCall struct {
 	Name   string
-	Input  string // truncated
-	Output string // truncated
+	Input  string // raw JSON of tool_use.input (not truncated)
+	Output string // raw JSON of tool_result.content or toolUseResult (not truncated)
+
+	// ID is the stable join key between a tool_use block and its matching
+	// tool_result (Claude's tool_use_id, e.g. "toolu_X"). Empty when the
+	// source does not provide one.
+	ID string
+
+	// IsError is true when the matching tool_result indicated failure.
+	// See internal/source/claude/parser.go is_error rules.
+	IsError bool
+
+	// File-I/O fields are populated for Read/Write/Edit calls only.
+	// FilePath is empty for tools without an obvious file path (e.g. Bash).
+	FilePath         string
+	FileOp           string // "read" | "write" | "edit" | ""
+	FileLinesAdded   int
+	FileLinesRemoved int
+	FileContentSize  int
 }
 
 type SearchResult struct {

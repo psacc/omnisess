@@ -3,6 +3,7 @@ package claude
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -337,7 +338,8 @@ func TestExtractToolCalls_Names(t *testing.T) {
 }
 
 func TestExtractToolCalls_LargeInput(t *testing.T) {
-	// Input longer than 200 chars should be truncated
+	// Inputs are NOT truncated — the parser stores the full JSON because
+	// file paths and Write/Edit payloads can exceed the historic 200-byte cap.
 	largeInput := make(map[string]interface{})
 	longStr := ""
 	for i := 0; i < 300; i++ {
@@ -353,8 +355,11 @@ func TestExtractToolCalls_LargeInput(t *testing.T) {
 	if len(calls) != 1 {
 		t.Fatalf("expected 1 call, got %d", len(calls))
 	}
-	if len(calls[0].Input) > 210 { // 200 + "..."
-		t.Errorf("expected truncated input, got length %d", len(calls[0].Input))
+	if len(calls[0].Input) < 300 {
+		t.Errorf("expected full untruncated input (>=300 bytes), got length %d", len(calls[0].Input))
+	}
+	if strings.Contains(calls[0].Input, "...") {
+		t.Errorf("expected no truncation marker in untruncated input, got: %q", calls[0].Input)
 	}
 }
 
@@ -615,6 +620,467 @@ func TestExtractSessionIDFromPath(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestParseSessionFile_ToolUseResult exercises tool_use/tool_result pairing,
+// toolUseResult (object and bare-string) handling, structuredPatch line
+// counting, file-I/O extraction, error flagging, orphan tool_use, and
+// assistant `usage` token capture. Covers the fixture matrix in tasks.md §4.7
+// at the parser layer.
+func TestParseSessionFile_ToolUseResult(t *testing.T) {
+	path := filepath.Join("testdata", "tool_use_result.jsonl")
+	messages, mdl, _, err := parseSessionFile(path)
+	if err != nil {
+		t.Fatalf("parseSessionFile: %v", err)
+	}
+	// Fixture exercises both inner-`message.model` (line 1) and top-level
+	// `model` (later lines). First non-empty wins; inner model is captured.
+	if mdl != "claude-opus-4-7" {
+		t.Errorf("model = %q, want claude-opus-4-7", mdl)
+	}
+
+	// Collect all tool calls keyed by ID for easy assertions.
+	byID := make(map[string]model.ToolCall)
+	for _, m := range messages {
+		for _, tc := range m.ToolCalls {
+			byID[tc.ID] = tc
+		}
+	}
+
+	// Read pair: file_path captured from input AND nested toolUseResult.file.filePath
+	if tc, ok := byID["toolu_R1"]; !ok {
+		t.Fatal("missing toolu_R1")
+	} else {
+		if tc.Name != "Read" || tc.FileOp != "read" {
+			t.Errorf("R1 name/op = %q/%q", tc.Name, tc.FileOp)
+		}
+		if tc.FilePath != "/Users/x/proj/a.go" {
+			t.Errorf("R1 FilePath = %q", tc.FilePath)
+		}
+		if tc.IsError {
+			t.Errorf("R1 IsError = true, want false")
+		}
+		if tc.Output == "" {
+			t.Errorf("R1 Output empty; expected toolUseResult json")
+		}
+	}
+
+	// Edit with structuredPatch: 2 added, 1 removed
+	if tc, ok := byID["toolu_E1"]; !ok {
+		t.Fatal("missing toolu_E1")
+	} else {
+		if tc.FileOp != "edit" || tc.FilePath != "/Users/x/proj/a.go" {
+			t.Errorf("E1 op/path = %q/%q", tc.FileOp, tc.FilePath)
+		}
+		if tc.FileLinesAdded != 2 {
+			t.Errorf("E1 FileLinesAdded = %d, want 2", tc.FileLinesAdded)
+		}
+		if tc.FileLinesRemoved != 1 {
+			t.Errorf("E1 FileLinesRemoved = %d, want 1", tc.FileLinesRemoved)
+		}
+	}
+
+	// Bash: no file extraction in PR1
+	if tc, ok := byID["toolu_B1"]; !ok {
+		t.Fatal("missing toolu_B1")
+	} else if tc.Name != "Bash" || tc.FilePath != "" || tc.FileOp != "" {
+		t.Errorf("B1 name/path/op = %q/%q/%q (want Bash/empty/empty)", tc.Name, tc.FilePath, tc.FileOp)
+	}
+
+	// Read with is_error=true on tool_result
+	if tc, ok := byID["toolu_R2"]; !ok {
+		t.Fatal("missing toolu_R2")
+	} else if !tc.IsError {
+		t.Errorf("R2 IsError = false, want true (tool_result.is_error)")
+	}
+
+	// Skill with success: false
+	if tc, ok := byID["toolu_S1"]; !ok {
+		t.Fatal("missing toolu_S1")
+	} else if !tc.IsError {
+		t.Errorf("S1 IsError = false, want true (toolUseResult.success=false)")
+	}
+
+	// Bash with bare-string "Error:" toolUseResult
+	if tc, ok := byID["toolu_B2"]; !ok {
+		t.Fatal("missing toolu_B2")
+	} else if !tc.IsError {
+		t.Errorf("B2 IsError = false, want true (toolUseResult bare-string Error:)")
+	}
+
+	// Write with content
+	if tc, ok := byID["toolu_W1"]; !ok {
+		t.Fatal("missing toolu_W1")
+	} else {
+		if tc.FileOp != "write" || tc.FilePath != "/Users/x/proj/b.go" {
+			t.Errorf("W1 op/path = %q/%q", tc.FileOp, tc.FilePath)
+		}
+		if tc.FileContentSize != len("hello world") {
+			t.Errorf("W1 FileContentSize = %d, want %d", tc.FileContentSize, len("hello world"))
+		}
+	}
+
+	// Orphan tool_use (no tool_result) should still exist
+	if tc, ok := byID["toolu_ORPHAN"]; !ok {
+		t.Fatal("missing toolu_ORPHAN (orphan tool_use)")
+	} else {
+		if tc.IsError {
+			t.Errorf("orphan IsError = true, want false")
+		}
+		if tc.Output != "" {
+			t.Errorf("orphan Output = %q, want empty", tc.Output)
+		}
+	}
+
+	// Usage tokens summed across assistant messages.
+	totalIn := 0
+	totalOut := 0
+	totalCacheCreate := 0
+	totalCacheRead := 0
+	for _, m := range messages {
+		if m.Role == model.RoleAssistant {
+			totalIn += m.UsageInputTokens
+			totalOut += m.UsageOutputTokens
+			totalCacheCreate += m.UsageCacheCreationInputTokens
+			totalCacheRead += m.UsageCacheReadInputTokens
+		}
+	}
+	// Fixture has 3 assistant messages with usage: 100+50+10=160; 40+20+5=65
+	if totalIn < 160 {
+		t.Errorf("totalInputTokens = %d, want >= 160", totalIn)
+	}
+	if totalOut < 65 {
+		t.Errorf("totalOutputTokens = %d, want >= 65", totalOut)
+	}
+	if totalCacheCreate != 1000 {
+		t.Errorf("totalCacheCreate = %d, want 1000", totalCacheCreate)
+	}
+	if totalCacheRead != 500 {
+		t.Errorf("totalCacheRead = %d, want 500", totalCacheRead)
+	}
+}
+
+// TestExtractToolResults covers the user-content tool_result extraction helper.
+func TestExtractToolResults(t *testing.T) {
+	tests := []struct {
+		name    string
+		content interface{}
+		wantIDs []string
+	}{
+		{
+			name:    "nil content",
+			content: nil,
+			wantIDs: nil,
+		},
+		{
+			name:    "string content",
+			content: "ignore me",
+			wantIDs: nil,
+		},
+		{
+			name: "single tool_result",
+			content: []interface{}{
+				map[string]interface{}{"type": "tool_result", "tool_use_id": "toolu_X", "content": "hi"},
+			},
+			wantIDs: []string{"toolu_X"},
+		},
+		{
+			name: "skip non-tool_result blocks",
+			content: []interface{}{
+				map[string]interface{}{"type": "text", "text": "hi"},
+				map[string]interface{}{"type": "tool_result", "tool_use_id": "toolu_X", "content": "hi"},
+			},
+			wantIDs: []string{"toolu_X"},
+		},
+		{
+			name: "skip empty tool_use_id",
+			content: []interface{}{
+				map[string]interface{}{"type": "tool_result", "tool_use_id": "", "content": "hi"},
+			},
+			wantIDs: nil,
+		},
+		{
+			name: "skip non-map blocks",
+			content: []interface{}{
+				"a string block",
+				map[string]interface{}{"type": "tool_result", "tool_use_id": "toolu_Y", "content": "ok"},
+			},
+			wantIDs: []string{"toolu_Y"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractToolResults(tt.content)
+			if len(got) != len(tt.wantIDs) {
+				t.Errorf("len(got)=%d want %d (%v)", len(got), len(tt.wantIDs), got)
+			}
+			for _, id := range tt.wantIDs {
+				if _, ok := got[id]; !ok {
+					t.Errorf("missing id %q", id)
+				}
+			}
+		})
+	}
+}
+
+// TestExtractToolResultErrors covers is_error extraction including all skip paths.
+func TestExtractToolResultErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		content interface{}
+		want    map[string]bool
+	}{
+		{name: "nil", content: nil, want: map[string]bool{}},
+		{name: "string", content: "x", want: map[string]bool{}},
+		{
+			name: "is_error true",
+			content: []interface{}{
+				map[string]interface{}{"type": "tool_result", "tool_use_id": "toolu_X", "is_error": true},
+			},
+			want: map[string]bool{"toolu_X": true},
+		},
+		{
+			name: "is_error false",
+			content: []interface{}{
+				map[string]interface{}{"type": "tool_result", "tool_use_id": "toolu_X", "is_error": false},
+			},
+			want: map[string]bool{},
+		},
+		{
+			name: "non-bool is_error",
+			content: []interface{}{
+				map[string]interface{}{"type": "tool_result", "tool_use_id": "toolu_X", "is_error": "no"},
+			},
+			want: map[string]bool{},
+		},
+		{
+			name: "non-tool_result skipped",
+			content: []interface{}{
+				map[string]interface{}{"type": "text"},
+			},
+			want: map[string]bool{},
+		},
+		{
+			name: "empty tool_use_id skipped",
+			content: []interface{}{
+				map[string]interface{}{"type": "tool_result", "tool_use_id": "", "is_error": true},
+			},
+			want: map[string]bool{},
+		},
+		{
+			name: "non-map block skipped",
+			content: []interface{}{
+				42,
+				map[string]interface{}{"type": "tool_result", "tool_use_id": "toolu_Y", "is_error": true},
+			},
+			want: map[string]bool{"toolu_Y": true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractToolResultErrors(tt.content)
+			if len(got) != len(tt.want) {
+				t.Errorf("len=%d want %d (got: %v)", len(got), len(tt.want), got)
+			}
+			for k, v := range tt.want {
+				if got[k] != v {
+					t.Errorf("got[%q]=%v want %v", k, got[k], v)
+				}
+			}
+		})
+	}
+}
+
+// TestApplyToolUseResult covers the per-shape branches of applyToolUseResult.
+func TestApplyToolUseResult(t *testing.T) {
+	t.Run("empty raw", func(t *testing.T) {
+		var tc model.ToolCall
+		applyToolUseResult(&tc, nil)
+		if tc.Output != "" || tc.IsError {
+			t.Errorf("expected no-op for empty raw, got %+v", tc)
+		}
+	})
+	t.Run("bare string non-error", func(t *testing.T) {
+		var tc model.ToolCall
+		applyToolUseResult(&tc, []byte(`"hello"`))
+		if tc.IsError {
+			t.Errorf("non-error string should not set IsError")
+		}
+	})
+	t.Run("bare string Error:", func(t *testing.T) {
+		var tc model.ToolCall
+		applyToolUseResult(&tc, []byte(`"Error: Exit code 1"`))
+		if !tc.IsError {
+			t.Errorf("Error: prefix should set IsError")
+		}
+	})
+	t.Run("non-json garbage", func(t *testing.T) {
+		var tc model.ToolCall
+		applyToolUseResult(&tc, []byte(`{not json}`))
+		// Output is still set; no panic.
+		if tc.Output != "{not json}" {
+			t.Errorf("Output = %q", tc.Output)
+		}
+	})
+	t.Run("success:false", func(t *testing.T) {
+		tc := model.ToolCall{Name: "Skill"}
+		applyToolUseResult(&tc, []byte(`{"success":false,"commandName":"x"}`))
+		if !tc.IsError {
+			t.Errorf("success:false should set IsError")
+		}
+	})
+	t.Run("Read with nested file.filePath", func(t *testing.T) {
+		tc := model.ToolCall{Name: "Read"}
+		applyToolUseResult(&tc, []byte(`{"type":"text","file":{"filePath":"/a/b.go"}}`))
+		if tc.FilePath != "/a/b.go" {
+			t.Errorf("FilePath = %q", tc.FilePath)
+		}
+	})
+	t.Run("Read with non-map file ignored", func(t *testing.T) {
+		tc := model.ToolCall{Name: "Read", FilePath: "/from-input.go"}
+		applyToolUseResult(&tc, []byte(`{"file":"not a map"}`))
+		if tc.FilePath != "/from-input.go" {
+			t.Errorf("FilePath should stay from input, got %q", tc.FilePath)
+		}
+	})
+	t.Run("Write top-level filePath wins", func(t *testing.T) {
+		tc := model.ToolCall{Name: "Write", FilePath: "/from-input.go"}
+		applyToolUseResult(&tc, []byte(`{"filePath":"/from-result.go"}`))
+		if tc.FilePath != "/from-result.go" {
+			t.Errorf("FilePath = %q, want /from-result.go", tc.FilePath)
+		}
+	})
+	t.Run("Edit structuredPatch with context ignored", func(t *testing.T) {
+		tc := model.ToolCall{Name: "Edit"}
+		applyToolUseResult(&tc, []byte(`{"structuredPatch":[{"lines":[" ctx","+a","+b","-c"]}]}`))
+		if tc.FileLinesAdded != 2 || tc.FileLinesRemoved != 1 {
+			t.Errorf("added=%d removed=%d", tc.FileLinesAdded, tc.FileLinesRemoved)
+		}
+	})
+	t.Run("Edit structuredPatch non-array ignored", func(t *testing.T) {
+		tc := model.ToolCall{Name: "Edit"}
+		applyToolUseResult(&tc, []byte(`{"structuredPatch":"oops"}`))
+		if tc.FileLinesAdded != 0 || tc.FileLinesRemoved != 0 {
+			t.Errorf("expected zero counts, got +%d -%d", tc.FileLinesAdded, tc.FileLinesRemoved)
+		}
+	})
+	t.Run("non-Read/Write/Edit name ignored for file fields", func(t *testing.T) {
+		tc := model.ToolCall{Name: "Grep"}
+		applyToolUseResult(&tc, []byte(`{"filePath":"/x","file":{"filePath":"/y"}}`))
+		if tc.FilePath != "" {
+			t.Errorf("Grep should not get FilePath, got %q", tc.FilePath)
+		}
+	})
+}
+
+// TestCountStructuredPatchLines covers helper edges directly so coverage is 100%.
+func TestCountStructuredPatchLines(t *testing.T) {
+	tests := []struct {
+		name             string
+		patches          []interface{}
+		wantAdd, wantRem int
+	}{
+		{name: "empty", patches: nil, wantAdd: 0, wantRem: 0},
+		{
+			name: "non-map hunk",
+			patches: []interface{}{
+				"not a hunk",
+			},
+		},
+		{
+			name: "missing lines key",
+			patches: []interface{}{
+				map[string]interface{}{},
+			},
+		},
+		{
+			name: "lines wrong type",
+			patches: []interface{}{
+				map[string]interface{}{"lines": "should be array"},
+			},
+		},
+		{
+			name: "non-string line entry",
+			patches: []interface{}{
+				map[string]interface{}{"lines": []interface{}{1, "+a"}},
+			},
+			wantAdd: 1,
+		},
+		{
+			name: "empty string line entry",
+			patches: []interface{}{
+				map[string]interface{}{"lines": []interface{}{"", "+a", "-b"}},
+			},
+			wantAdd: 1,
+			wantRem: 1,
+		},
+		{
+			name: "context line ignored",
+			patches: []interface{}{
+				map[string]interface{}{"lines": []interface{}{" ctx", "+a", "+b", "-c"}},
+			},
+			wantAdd: 2,
+			wantRem: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a, r := countStructuredPatchLines(tt.patches)
+			if a != tt.wantAdd || r != tt.wantRem {
+				t.Errorf("got +%d -%d, want +%d -%d", a, r, tt.wantAdd, tt.wantRem)
+			}
+		})
+	}
+}
+
+// TestApplyFileFromInput covers the helper directly to ensure all branches
+// (non-map, Read/Write/Edit/other names, missing keys) are exercised.
+func TestApplyFileFromInput(t *testing.T) {
+	t.Run("non-map input", func(t *testing.T) {
+		tc := model.ToolCall{Name: "Read"}
+		applyFileFromInput(&tc, "not a map")
+		if tc.FileOp != "" || tc.FilePath != "" {
+			t.Errorf("expected no change, got %+v", tc)
+		}
+	})
+	t.Run("Read missing file_path", func(t *testing.T) {
+		tc := model.ToolCall{Name: "Read"}
+		applyFileFromInput(&tc, map[string]interface{}{})
+		if tc.FileOp != "read" {
+			t.Errorf("op = %q, want read", tc.FileOp)
+		}
+		if tc.FilePath != "" {
+			t.Errorf("FilePath = %q, want empty", tc.FilePath)
+		}
+	})
+	t.Run("Write with content", func(t *testing.T) {
+		tc := model.ToolCall{Name: "Write"}
+		applyFileFromInput(&tc, map[string]interface{}{"file_path": "/a", "content": "hello"})
+		if tc.FileOp != "write" || tc.FilePath != "/a" || tc.FileContentSize != 5 {
+			t.Errorf("got %+v", tc)
+		}
+	})
+	t.Run("Write without content", func(t *testing.T) {
+		tc := model.ToolCall{Name: "Write"}
+		applyFileFromInput(&tc, map[string]interface{}{"file_path": "/a"})
+		if tc.FileContentSize != 0 {
+			t.Errorf("FileContentSize = %d, want 0", tc.FileContentSize)
+		}
+	})
+	t.Run("Edit", func(t *testing.T) {
+		tc := model.ToolCall{Name: "Edit"}
+		applyFileFromInput(&tc, map[string]interface{}{"file_path": "/a"})
+		if tc.FileOp != "edit" || tc.FilePath != "/a" {
+			t.Errorf("got %+v", tc)
+		}
+	})
+	t.Run("Bash (no extraction)", func(t *testing.T) {
+		tc := model.ToolCall{Name: "Bash"}
+		applyFileFromInput(&tc, map[string]interface{}{"command": "ls"})
+		if tc.FileOp != "" || tc.FilePath != "" {
+			t.Errorf("Bash should not get file fields, got %+v", tc)
+		}
+	})
 }
 
 func TestProjectFromSessionPath(t *testing.T) {
