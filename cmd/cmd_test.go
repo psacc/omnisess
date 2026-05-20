@@ -1065,7 +1065,7 @@ func TestRunDigest_SourceError(t *testing.T) {
 
 // TestRunDigest_LimitApplied covers the limit truncation branch. digestSrc.List
 // returns 2 sessions; with flagLimit=1 the output must contain only one and the
-// header must report (1 sessions).
+// header must report (1 session) — singular noun (issue #53).
 func TestRunDigest_LimitApplied(t *testing.T) {
 	resetFlags()
 	flagDate = "2026-05-10"
@@ -1078,8 +1078,11 @@ func TestRunDigest_LimitApplied(t *testing.T) {
 	}
 
 	out := buf.String()
-	if !strings.Contains(out, "(1 sessions)") {
-		t.Errorf("expected (1 sessions) in header with limit=1; got: %q", out)
+	if !strings.Contains(out, "(1 session)") {
+		t.Errorf("expected (1 session) in header with limit=1; got: %q", out)
+	}
+	if strings.Contains(out, "(1 sessions)") {
+		t.Errorf("header still uses plural for N=1 (issue #53 regression); got: %q", out)
 	}
 	if got := strings.Count(out, "### "); got != 1 {
 		t.Errorf("expected exactly 1 session heading with limit=1; got %d in: %q", got, out)
@@ -1107,6 +1110,43 @@ func TestWriteDigest_NoSessions(t *testing.T) {
 	}
 	if strings.Contains(got, "###") {
 		t.Errorf("no-sessions digest should not have session headings; got: %q", got)
+	}
+}
+
+// TestWriteDigest_HeaderPluralization covers the singular/plural noun rule in
+// the digest header (issue #53). N=1 must render "1 session"; every other N
+// (including 0) must render "N sessions".
+func TestWriteDigest_HeaderPluralization(t *testing.T) {
+	tests := []struct {
+		name  string
+		count int
+		want  string
+	}{
+		{"zero is plural", 0, "(0 sessions)"},
+		{"one is singular", 1, "(1 session)"},
+		{"two is plural", 2, "(2 sessions)"},
+		{"many is plural", 42, "(42 sessions)"},
+	}
+	srcMap := map[model.Tool]source.Source{digestGetNilSrcName: &digestGetNilSrc{}}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sessions := make([]model.Session, tt.count)
+			for i := range sessions {
+				// Use digestGetNilSrc so Get returns nil and rendering is a no-op —
+				// keeps the test focused on the header only.
+				sessions[i] = model.Session{ID: fmt.Sprintf("s%d", i), Tool: digestGetNilSrcName}
+			}
+			var buf strings.Builder
+			writeDigest(&buf, sessions, srcMap, "2026-05-10")
+			got := buf.String()
+			if !strings.Contains(got, tt.want) {
+				t.Errorf("writeDigest header missing %q; got: %q", tt.want, got)
+			}
+			// Negative assertion for N=1: plural form must NOT appear.
+			if tt.count == 1 && strings.Contains(got, "(1 sessions)") {
+				t.Errorf("N=1 header still uses plural form (issue #53 regression); got: %q", got)
+			}
+		})
 	}
 }
 
