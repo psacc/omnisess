@@ -74,7 +74,11 @@ func runDigestTo(w io.Writer) error {
 }
 
 func writeDigest(w io.Writer, sessions []model.Session, srcByTool map[model.Tool]source.Source, dateLabel string) {
-	fmt.Fprintf(w, "## AI sessions — %s  (%d sessions)\n\n", dateLabel, len(sessions))
+	noun := "sessions"
+	if len(sessions) == 1 {
+		noun = "session"
+	}
+	fmt.Fprintf(w, "## AI sessions — %s  (%d %s)\n\n", dateLabel, len(sessions), noun)
 	if len(sessions) == 0 {
 		return
 	}

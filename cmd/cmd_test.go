@@ -774,6 +774,93 @@ func TestRunSearch_LimitApplied(t *testing.T) {
 	}
 }
 
+// TestSearchArgs covers the custom Args validator that rejects empty /
+// whitespace-only queries before the corpus is scanned (issue #52).
+// cobra.MinimumNArgs(1) alone is insufficient because cobra treats "" as a
+// present argument.
+func TestSearchArgs(t *testing.T) {
+	tests := []struct {
+		name      string
+		args      []string
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name:      "empty string rejected",
+			args:      []string{""},
+			wantErr:   true,
+			errSubstr: "search query cannot be empty",
+		},
+		{
+			name:      "whitespace-only rejected",
+			args:      []string{"   "},
+			wantErr:   true,
+			errSubstr: "search query cannot be empty",
+		},
+		{
+			name:      "tabs and newlines rejected",
+			args:      []string{"\t\n "},
+			wantErr:   true,
+			errSubstr: "search query cannot be empty",
+		},
+		{
+			name:    "non-empty accepted",
+			args:    []string{"hello"},
+			wantErr: false,
+		},
+		{
+			name:    "non-empty with surrounding whitespace accepted",
+			args:    []string{"  hello  "},
+			wantErr: false,
+		},
+		{
+			name:    "no args rejected by MinimumNArgs",
+			args:    []string{},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := searchArgs(newNoopCmd(), tt.args)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("searchArgs(%q) = nil, want error", tt.args)
+				}
+				if tt.errSubstr != "" && !strings.Contains(err.Error(), tt.errSubstr) {
+					t.Errorf("searchArgs(%q) error = %q, want substring %q",
+						tt.args, err.Error(), tt.errSubstr)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("searchArgs(%q) returned unexpected error: %v", tt.args, err)
+			}
+		})
+	}
+}
+
+// TestSearchCmd_EmptyQuery_E2E exercises the cobra command's Args wiring
+// (rootCmd → searchCmd → searchArgs). Asserts the empty-query rejection
+// reaches the user via cobra without invoking RunE (which would scan disk).
+func TestSearchCmd_EmptyQuery_E2E(t *testing.T) {
+	silenceOutput(t)
+	resetFlags()
+	origArgs := rootCmd.Args // searchCmd shares rootCmd
+	t.Cleanup(func() {
+		rootCmd.SetArgs(nil)
+		_ = origArgs
+	})
+	rootCmd.SetArgs([]string{"search", ""})
+	err := rootCmd.Execute()
+	rootCmd.SetArgs(nil)
+	if err == nil {
+		t.Fatal("`omnisess search \"\"` should return an error, got nil")
+	}
+	if !strings.Contains(err.Error(), "search query cannot be empty") {
+		t.Errorf("error = %q, want substring %q", err.Error(), "search query cannot be empty")
+	}
+}
+
 // ---------------------------------------------------------------------------
 // runShow
 // ---------------------------------------------------------------------------
@@ -978,7 +1065,7 @@ func TestRunDigest_SourceError(t *testing.T) {
 
 // TestRunDigest_LimitApplied covers the limit truncation branch. digestSrc.List
 // returns 2 sessions; with flagLimit=1 the output must contain only one and the
-// header must report (1 sessions).
+// header must report (1 session) — singular noun (issue #53).
 func TestRunDigest_LimitApplied(t *testing.T) {
 	resetFlags()
 	flagDate = "2026-05-10"
@@ -991,8 +1078,11 @@ func TestRunDigest_LimitApplied(t *testing.T) {
 	}
 
 	out := buf.String()
-	if !strings.Contains(out, "(1 sessions)") {
-		t.Errorf("expected (1 sessions) in header with limit=1; got: %q", out)
+	if !strings.Contains(out, "(1 session)") {
+		t.Errorf("expected (1 session) in header with limit=1; got: %q", out)
+	}
+	if strings.Contains(out, "(1 sessions)") {
+		t.Errorf("header still uses plural for N=1 (issue #53 regression); got: %q", out)
 	}
 	if got := strings.Count(out, "### "); got != 1 {
 		t.Errorf("expected exactly 1 session heading with limit=1; got %d in: %q", got, out)
@@ -1020,6 +1110,43 @@ func TestWriteDigest_NoSessions(t *testing.T) {
 	}
 	if strings.Contains(got, "###") {
 		t.Errorf("no-sessions digest should not have session headings; got: %q", got)
+	}
+}
+
+// TestWriteDigest_HeaderPluralization covers the singular/plural noun rule in
+// the digest header (issue #53). N=1 must render "1 session"; every other N
+// (including 0) must render "N sessions".
+func TestWriteDigest_HeaderPluralization(t *testing.T) {
+	tests := []struct {
+		name  string
+		count int
+		want  string
+	}{
+		{"zero is plural", 0, "(0 sessions)"},
+		{"one is singular", 1, "(1 session)"},
+		{"two is plural", 2, "(2 sessions)"},
+		{"many is plural", 42, "(42 sessions)"},
+	}
+	srcMap := map[model.Tool]source.Source{digestGetNilSrcName: &digestGetNilSrc{}}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sessions := make([]model.Session, tt.count)
+			for i := range sessions {
+				// Use digestGetNilSrc so Get returns nil and rendering is a no-op —
+				// keeps the test focused on the header only.
+				sessions[i] = model.Session{ID: fmt.Sprintf("s%d", i), Tool: digestGetNilSrcName}
+			}
+			var buf strings.Builder
+			writeDigest(&buf, sessions, srcMap, "2026-05-10")
+			got := buf.String()
+			if !strings.Contains(got, tt.want) {
+				t.Errorf("writeDigest header missing %q; got: %q", tt.want, got)
+			}
+			// Negative assertion for N=1: plural form must NOT appear.
+			if tt.count == 1 && strings.Contains(got, "(1 sessions)") {
+				t.Errorf("N=1 header still uses plural form (issue #53 regression); got: %q", got)
+			}
+		})
 	}
 }
 
