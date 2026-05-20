@@ -27,6 +27,16 @@ import (
 // fires at most once per List call).
 const peekConcurrencyCap = 16
 
+// isToolRunning is the function used to probe whether the `claude` CLI is
+// currently running. It exists as an overridable var (rather than calling
+// detect.IsToolRunning directly) so tests can force both the running=true
+// and running=false branches deterministically. Without this seam, coverage
+// of `peekHistoryEntry` / `peekOrphanFile` depends on whether the host
+// running the test happens to have a `claude` process alive — which differs
+// between developer macOS hosts and Linux CI runners, breaking the per-package
+// 100% coverage gate.
+var isToolRunning = detect.IsToolRunning
+
 // peekConcurrency returns min(NumCPU, peekConcurrencyCap), clamped to at
 // least 1. The implementation is split into a pure clampConcurrency helper
 // so the boundary cases (n > cap, n < 1) are unit-testable without messing
@@ -262,7 +272,7 @@ func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 	// It is a constant for the loop in practice — the user either has the
 	// claude CLI running or doesn't — and saving N pgrep spawns is a chunky
 	// win on a multi-thousand-session corpus.
-	claudeRunning := detect.IsToolRunning("claude")
+	claudeRunning := isToolRunning("claude")
 
 	// Track seen session IDs to avoid duplicates in the orphan scan.
 	seenIDs := make(map[string]bool, len(entries))
