@@ -49,7 +49,7 @@ In Claude Code, run:
 
 ### Usage
 
-Once installed, eight slash commands are available:
+Once installed, ten slash commands are available:
 
 | Command | Description | Example |
 |---|---|---|
@@ -59,6 +59,8 @@ Once installed, eight slash commands are available:
 | `/omnisess:show` | Show full detail for a session | `/omnisess:show claude:5c3f2742` |
 | `/omnisess:recap` | Structured markdown briefing of sessions for a time window | `/omnisess:recap today` |
 | `/omnisess:digest` | Print a calendar day's sessions as Obsidian-compatible markdown with full Q&A | `/omnisess:digest --date 2026-05-09` |
+| `/omnisess:stats` | Tool-call counts and file-I/O activity from the transcript index | `/omnisess:stats --window 7d` |
+| `/omnisess:index` | Bulk-populate the transcript SQLite cache used by `stats` | `/omnisess:index --all` |
 | `/omnisess:ps` | Live Claude process tree with ancestor lineage (macOS) | `/omnisess:ps` |
 | `/omnisess:skills-audit` | Classify Claude Code skills by usage (Keep / Borderline / Archive) | `/omnisess:skills-audit --window 90d` |
 

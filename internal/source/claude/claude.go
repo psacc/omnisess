@@ -751,7 +751,26 @@ func projectFromSessionPath(sessionFilePath string) string {
 	return projectPathFromDir(dirName)
 }
 
-// Search returns sessions containing the query string (case-insensitive substring match).
+// searchPeek holds per-session search output, index-aligned with the
+// `sessions []model.Session` slice returned by List. A slot with hit=false
+// is dropped during the post-fan-out sequential filter, preserving the
+// session ranking produced by List.
+type searchPeek struct {
+	hit     bool
+	session model.Session
+	matches []model.SearchMatch
+}
+
+// Search returns sessions containing the query string (case-insensitive
+// substring match).
+//
+// Strategy mirrors the parallel template established for List in #58: the
+// per-session JSONL parse + match work is fanned out under errgroup with
+// peekConcurrency() limit, into index-aligned slots. The sequential filter
+// loop afterwards walks the slots in order, so the result ranking matches
+// List's ordering deterministically regardless of goroutine completion
+// order. Per-session failures (truncated/missing JSONL) are logged + skipped
+// rather than aborting the whole search.
 func (s *claudeSource) Search(query string, opts source.ListOptions) ([]model.SearchResult, error) {
 	sessions, err := s.List(opts)
 	if err != nil {
@@ -759,59 +778,89 @@ func (s *claudeSource) Search(query string, opts source.ListOptions) ([]model.Se
 	}
 
 	queryLower := strings.ToLower(query)
-	var results []model.SearchResult
+	peeks := make([]searchPeek, len(sessions))
+	g, _ := errgroup.WithContext(context.Background())
+	g.SetLimit(peekConcurrency())
+	for i := range sessions {
+		i := i
+		sess := sessions[i]
+		g.Go(func() error {
+			peeks[i] = searchSessionPeek(sess, query, queryLower)
+			return nil
+		})
+	}
+	// searchSessionPeek never returns an error — per-session failures log +
+	// skip via the hit=false path. Discard Wait() so the unreachable error
+	// branch doesn't sit on the coverage budget.
+	_ = g.Wait()
 
-	for _, sess := range sessions {
-		// Find the session file
-		var sessionFilePath string
-		if sess.Project != "" {
-			sessionFilePath = findSessionFileForProject(sess.Project, sess.ID)
-		}
-		if sessionFilePath == "" {
-			sessionFilePath, _ = findSessionFile(sess.ID)
-		}
-		if sessionFilePath == "" {
+	results := make([]model.SearchResult, 0, len(peeks))
+	for _, p := range peeks {
+		if !p.hit {
 			continue
 		}
+		results = append(results, model.SearchResult{
+			Session: p.session,
+			Matches: p.matches,
+		})
+	}
+	return results, nil
+}
 
-		messages, mdl, branch, err := parseSessionFile(sessionFilePath)
-		if err != nil {
-			log.Printf("warning: parsing session %s for search: %v", sess.ID, err)
-			continue
-		}
+// searchSessionPeek is the per-session worker for Search. Safe to call from
+// multiple goroutines: it touches only its own return value, the file system
+// (read-only), and log.Printf (already safe). queryLower is precomputed by
+// the caller so we don't lower-case the query N times.
+func searchSessionPeek(sess model.Session, query, queryLower string) searchPeek {
+	out := searchPeek{session: sess}
 
-		var matches []model.SearchMatch
-		for i, msg := range messages {
-			contentLower := strings.ToLower(msg.Content)
-			idx := strings.Index(contentLower, queryLower)
-			if idx < 0 {
-				continue
-			}
-
-			snippet := extractSnippet(msg.Content, idx, len(query), 200)
-			matches = append(matches, model.SearchMatch{
-				MessageIndex: i,
-				Snippet:      snippet,
-				Role:         msg.Role,
-			})
-		}
-
-		if len(matches) > 0 {
-			sess.Messages = nil // don't populate full messages in search results
-			if mdl != "" {
-				sess.Model = mdl
-			}
-			if branch != "" {
-				sess.Branch = branch
-			}
-			results = append(results, model.SearchResult{
-				Session: sess,
-				Matches: matches,
-			})
-		}
+	var sessionFilePath string
+	if sess.Project != "" {
+		sessionFilePath = findSessionFileForProject(sess.Project, sess.ID)
+	}
+	if sessionFilePath == "" {
+		sessionFilePath, _ = findSessionFile(sess.ID)
+	}
+	if sessionFilePath == "" {
+		return out
 	}
 
-	return results, nil
+	messages, mdl, branch, err := parseSessionFile(sessionFilePath)
+	if err != nil {
+		log.Printf("warning: parsing session %s for search: %v", sess.ID, err)
+		return out
+	}
+
+	var matches []model.SearchMatch
+	for i, msg := range messages {
+		contentLower := strings.ToLower(msg.Content)
+		idx := strings.Index(contentLower, queryLower)
+		if idx < 0 {
+			continue
+		}
+		matches = append(matches, model.SearchMatch{
+			MessageIndex: i,
+			Snippet:      extractSnippet(msg.Content, idx, len(query), 200),
+			Role:         msg.Role,
+		})
+	}
+
+	if len(matches) == 0 {
+		return out
+	}
+
+	// Refine session metadata from the parsed file. We zero Messages so search
+	// results don't carry the full transcript (callers use Get() for that).
+	out.session.Messages = nil
+	if mdl != "" {
+		out.session.Model = mdl
+	}
+	if branch != "" {
+		out.session.Branch = branch
+	}
+	out.hit = true
+	out.matches = matches
+	return out
 }
 
 // extractSnippet returns a ~targetLen character snippet around a match position.

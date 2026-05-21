@@ -72,7 +72,8 @@ func runStatsTo(w, wErr io.Writer) error {
 
 // runStatsSession handles --session <id> lookup.
 func runStatsSession(w, wErr io.Writer, idx index.Index) error {
-	_, sessID := splitQualifiedID(flagStatsSession)
+	origArg := flagStatsSession
+	_, sessID := splitQualifiedID(origArg)
 	// claude source is always registered (blank-imported in cmd/root.go);
 	// no defensive empty-list check.
 	src := source.ByName(model.ToolClaude)[0]
@@ -90,7 +91,9 @@ func runStatsSession(w, wErr io.Writer, idx index.Index) error {
 		return fmt.Errorf("query session: %w", err)
 	}
 	if stats == nil {
-		return fmt.Errorf("session not found: %s", sessID)
+		// Preserve the original tool-qualified arg in the error so the user
+		// sees the same string they typed (e.g. "unknown:abc" not just "abc").
+		return fmt.Errorf("session not found: %s", origArg)
 	}
 	if flagStatsJSON {
 		return writeJSON(w, stats)
