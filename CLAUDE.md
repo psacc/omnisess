@@ -44,12 +44,14 @@ docs/design-docs/           Design decisions
 2. Source packages NEVER import each other
 3. No CGO — pure Go only (`modernc.org/sqlite`, not `mattn/go-sqlite3`)
 4. Index is an opt-in derived cache for analytics (`omnisess stats`).
-   Core `list`/`active`/`digest` paths are JSONL-scan; the Claude source
-   parallelizes per-session peek work and `digest` parallelizes per-session
-   full-parse work, both bounded by `min(NumCPU, 16)` under errgroup. The
-   `pgrep` per-tool probe is cached once per `List` call. `search` is still
-   sequential; index-routing for any of these is deferred pending evidence
-   that parallelization is insufficient (#54)
+   Core `list`/`active`/`digest`/`search` paths are JSONL-scan; the Claude
+   source parallelizes per-session peek work for `List` and per-session
+   parse-and-match work for `Search`, and `digest` parallelizes per-session
+   full-parse work, all bounded by `min(NumCPU, 16)` under errgroup. The
+   `pgrep` per-tool probe is cached once per `List` call. The cursor / codex
+   / copilot `Search` paths remain sequential — tracked as #71. Index-routing
+   for any of these is deferred pending evidence that parallelization is
+   insufficient.
 5. Session IDs are always displayed as `<tool>:<id>` (e.g., `claude:5c3f2742`)
 6. Home directory resolved at runtime via `os.UserHomeDir()`
 7. All local data is READ-ONLY — this tool never modifies source files
