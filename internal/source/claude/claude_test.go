@@ -2594,3 +2594,120 @@ func TestList_OrphanWithClaudeRunningTrue(t *testing.T) {
 	// we only need this branch to execute.
 	_ = sessions
 }
+
+// ---------------------------------------------------------------------------
+// Search — parallel fan-out determinism + per-session fault tolerance (#63)
+// ---------------------------------------------------------------------------
+
+// TestSearch_DeterministicAcrossRuns asserts that the parallel fan-out in
+// Search does not introduce non-determinism in the result ranking or in
+// per-session match content. The slot pattern in Search() guarantees this
+// by index-aligning the worker output with List()'s session order.
+func TestSearch_DeterministicAcrossRuns(t *testing.T) {
+	home := setupFakeHome(t)
+	setHome(t, home)
+	s := &claudeSource{}
+
+	first, err := s.Search("bug", source.ListOptions{})
+	if err != nil {
+		t.Fatalf("Search() error: %v", err)
+	}
+	if len(first) == 0 {
+		t.Fatal("expected at least one match for 'bug' in baseline run")
+	}
+	for i := 0; i < 10; i++ {
+		got, err := s.Search("bug", source.ListOptions{})
+		if err != nil {
+			t.Fatalf("Search() error on iteration %d: %v", i, err)
+		}
+		if len(got) != len(first) {
+			t.Fatalf("iteration %d: len mismatch %d vs %d", i, len(got), len(first))
+		}
+		for j := range got {
+			if got[j].Session.ID != first[j].Session.ID {
+				t.Errorf("iteration %d: ID mismatch at index %d: %q vs %q",
+					i, j, got[j].Session.ID, first[j].Session.ID)
+			}
+			if len(got[j].Matches) != len(first[j].Matches) {
+				t.Errorf("iteration %d: matches len mismatch at index %d: %d vs %d",
+					i, j, len(got[j].Matches), len(first[j].Matches))
+				continue
+			}
+			for k := range got[j].Matches {
+				if got[j].Matches[k].Snippet != first[j].Matches[k].Snippet {
+					t.Errorf("iteration %d: snippet mismatch at result %d match %d",
+						i, j, k)
+				}
+				if got[j].Matches[k].MessageIndex != first[j].Matches[k].MessageIndex {
+					t.Errorf("iteration %d: message index mismatch at result %d match %d",
+						i, j, k)
+				}
+			}
+		}
+	}
+}
+
+// TestSearch_PeekFailureDoesNotAbort asserts that a per-session parse failure
+// (truncated JSONL or vanished file) is tolerated: the offending session is
+// dropped from results but the other sessions still report their matches.
+// Without this guarantee, a single corrupt session file would yield an empty
+// search result for the entire corpus.
+func TestSearch_PeekFailureDoesNotAbort(t *testing.T) {
+	home := setupFakeHome(t)
+	setHome(t, home)
+
+	// Truncate the abc12345 session file. parseSessionFile on an empty file
+	// returns no error (zero messages), so the dropped-via-empty-match path is
+	// exercised. To force the parse-error path, we instead write malformed
+	// content that the scanner can't parse as a session line — but the
+	// extant Search code only logs+continues on parse error, so the test
+	// asserts the surviving session still produces a match.
+	truncated := filepath.Join(home, ".claude", "projects",
+		"-Users-foo-myproject", "abc12345-1234-5678-9abc-def012345678.jsonl")
+	// A line longer than bufio.MaxScanTokenSize forces a scanner error inside
+	// parseSessionFile. The session_simple fixture's scanner is configured at
+	// 2 MiB; a 4 MiB single line of garbage blows past it.
+	bigLine := strings.Repeat("x", 4*1024*1024)
+	if err := os.WriteFile(truncated, []byte(bigLine), 0o644); err != nil {
+		t.Fatalf("write malformed session file: %v", err)
+	}
+
+	s := &claudeSource{}
+	// def67890 (session_with_tools fixture) contains "config" in its content —
+	// that match must survive even though abc12345's parse now errors.
+	results, err := s.Search("config", source.ListOptions{})
+	if err != nil {
+		t.Fatalf("Search() unexpected error: %v", err)
+	}
+
+	// The corrupted session must NOT appear in results (peek skips it). The
+	// healthy session must still appear with at least one match.
+	var goodHit bool
+	for _, r := range results {
+		if strings.HasPrefix(r.Session.ID, "abc12345") {
+			t.Errorf("corrupted session abc12345 unexpectedly returned a hit")
+		}
+		if strings.HasPrefix(r.Session.ID, "def67890") {
+			goodHit = true
+			if len(r.Matches) == 0 {
+				t.Errorf("healthy session def67890 returned hit but no matches")
+			}
+		}
+	}
+	if !goodHit {
+		t.Errorf("expected healthy session def67890 to still match, results=%+v", results)
+	}
+}
+
+// TestSearchSessionPeek_NoSessionFile covers the path where the session
+// file can't be located (e.g. the on-disk file vanished between List and
+// Search). The worker must return hit=false without error.
+func TestSearchSessionPeek_NoSessionFile(t *testing.T) {
+	home := t.TempDir()
+	setHome(t, home)
+	// No .claude dir at all — every findSessionFile lookup will miss.
+	out := searchSessionPeek(model.Session{ID: "no-such-id", Project: "/no/such/project"}, "query", "query")
+	if out.hit {
+		t.Errorf("expected hit=false when session file is unresolvable")
+	}
+}

@@ -189,6 +189,52 @@ func TestList_SinceFilter(t *testing.T) {
 	}
 }
 
+// TestList_OnDateFilter is the regression guard for #61: --date must be
+// honored by the copilot source the same way it is by claude/cursor/codex.
+//
+// Sub-tests:
+//   - mismatching date (1999-01-01) → all sessions filtered out
+//   - matching date (the fixture-copy day, i.e. "today") → fixtures returned
+func TestList_OnDateFilter(t *testing.T) {
+	home, _ := setupFakeHome(t)
+	t.Setenv("HOME", home)
+	s := &copilotSource{}
+
+	// Sanity: with no date filter, both fixtures show up.
+	all, err := s.List(source.ListOptions{})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(all) == 0 {
+		t.Fatalf("expected baseline fixtures, got 0")
+	}
+
+	t.Run("mismatching date excludes all sessions", func(t *testing.T) {
+		now := time.Now()
+		sessions, err := s.List(source.ListOptions{
+			OnDate: time.Date(1999, 1, 1, 0, 0, 0, 0, now.Location()),
+		})
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		if len(sessions) != 0 {
+			t.Errorf("expected 0 with OnDate=1999-01-01, got %d", len(sessions))
+		}
+	})
+
+	t.Run("matching date returns fixtures", func(t *testing.T) {
+		now := time.Now()
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		sessions, err := s.List(source.ListOptions{OnDate: today})
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		if len(sessions) == 0 {
+			t.Errorf("expected fixtures with OnDate=today, got 0")
+		}
+	})
+}
+
 func TestList_ProjectFilter(t *testing.T) {
 	home, _ := setupFakeHome(t)
 	t.Setenv("HOME", home)
