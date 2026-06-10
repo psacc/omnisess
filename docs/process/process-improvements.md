@@ -61,9 +61,9 @@ The landing phase is a single agent task that:
 4. Spawns a reviewer subagent against the branch diff
 5. Addresses review findings
 6. Classifies the change (two-way door vs one-way door per `agent-review.md`)
-7. If two-way door: runs `make merge` (squash-merge into main)
-8. If one-way door: pushes branch, writes escalation summary, does NOT merge
-9. Verifies main is clean after merge
+7. Pushes the branch and opens a PR from the template
+8. If one-way door: additionally writes the escalation summary on the PR
+9. Waits for the owner's explicit go, then merges (`gh pr merge --squash`) and verifies main is clean
 
 ### B. Change the process return contract
 
@@ -148,10 +148,10 @@ export const landingTask = defineTask('landing', (args, taskCtx) => ({
         '  - Does it affect 3+ packages? -> one-way door',
         '  - Otherwise -> two-way door',
 
-        '--- TWO-WAY DOOR ---',
-        'If two-way door: run make merge (squash-merge into main)',
-        'Verify make check passes on main after merge',
-        'Delete the feature branch',
+        '--- BOTH DOORS ---',
+        'Push the branch and open a PR from the template',
+        'Wait for the owner explicit go on the PR (never self-merge)',
+        'After approval: gh pr merge --squash, verify make check on main',
         'If exec plan exists, move it to docs/exec-plans/completed/',
 
         '--- ONE-WAY DOOR ---',
@@ -246,7 +246,7 @@ Use this checklist when defining a new babysitter process that produces code cha
 - [ ] Landing task receives a conventional commit message
 - [ ] Landing task receives classification hints (model changes, dependency changes, package count)
 - [ ] Landing task runs `make check` before and after merge
-- [ ] Landing task handles both two-way door (self-merge) and one-way door (push + escalate)
+- [ ] Landing task handles both two-way door (PR + owner go) and one-way door (PR + escalation summary + owner go)
 
 ### Quality gate criteria
 

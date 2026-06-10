@@ -89,10 +89,15 @@ if [[ -n "$existing_protection" ]]; then
   restrictions=$(echo "$existing_protection" | python3 -c \
     "import json,sys; d=json.load(sys.stdin); print('yes' if d.get('restrictions') else 'no')" \
     2>/dev/null || echo "no")
+  # Contexts not in the list this script applies would be silently dropped
+  # by the full-object PUT — treat them as a stricter setting too.
+  extra_contexts=$(echo "$existing_protection" | python3 -c \
+    "import json,sys; d=json.load(sys.stdin); cs=(d.get('required_status_checks') or {}).get('contexts',[]); print(' '.join(c for c in cs if c not in ('check','cover-check')))" \
+    2>/dev/null || echo "")
 
-  if [[ "$enforce_admins" == "True" || "$required_reviews" -gt 0 || "$restrictions" == "yes" ]] && [[ "$FORCE" == "false" ]]; then
+  if [[ "$enforce_admins" == "True" || "$required_reviews" -gt 0 || "$restrictions" == "yes" || -n "$extra_contexts" ]] && [[ "$FORCE" == "false" ]]; then
     echo "  Warning: existing branch protection has stricter settings than this script applies:"
-    echo "    enforce_admins=$enforce_admins  required_reviews=$required_reviews  restrictions=$restrictions"
+    echo "    enforce_admins=$enforce_admins  required_reviews=$required_reviews  restrictions=$restrictions  extra_contexts=${extra_contexts:-none}"
     echo "  Skipping branch protection update to avoid weakening it."
     echo "  Run with --force to overwrite."
   else

@@ -179,6 +179,7 @@ If classification is unclear, request a reviewer subagent per `agent-review.md` 
 
 Before any merge to `main`, verify every item:
 
+- [ ] Owner's explicit go received on the PR (§3 — always, no exceptions)
 - [ ] `make check` clean (fmt + vet + lint + test, zero failures)
 - [ ] `make smoke` passed (binary in PATH, `omnisess list --limit=1` exits 0)
 - [ ] Exec plan: status updated (`active/` -> `completed/` if finished)
