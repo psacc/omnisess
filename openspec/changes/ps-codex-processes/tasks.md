@@ -27,5 +27,5 @@
 - [x] 5.1 `make check` + `make cover-check` clean
 - [x] 5.2 Smoke + e2e against live local codex instances: `./omnisess ps` and `ps --json` show running codex TUIs with correct cwd/age; wallclock < 5s
 - [x] 5.3 QA pass per TESTING.md (ps golden + risk overlay), report PII-clean per §3
-- [ ] 5.4 Reviewer subagent review of branch diff; address findings
-- [ ] 5.5 Push branch, open **draft PR** with template fully filled, no PII (one-way door: no self-merge)
+- [x] 5.4 Reviewer subagent review of branch diff; address findings
+- [x] 5.5 Push branch, open **draft PR** with template fully filled, no PII (one-way door: no self-merge)
