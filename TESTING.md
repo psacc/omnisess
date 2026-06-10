@@ -50,7 +50,7 @@ For each command, the agent runs one **golden** invocation and one **designed-to
 | `active` | `omnisess active` | — | Output may legitimately be empty; check for clean exit. |
 | `show` | `omnisess show <tool>:<id>` for a real session (or synthetic) | `omnisess show unknown:abc` | Error message must list every registered source (drift guard from FUP-D). |
 | `digest` | `omnisess digest --date <today>` | `omnisess digest --date not-a-date` | Output must be valid UTF-8 (regression guard for FUP-B). Synthetic fallback: write one fake session under `$TMPDIR/omnisess-qa/claude/`. |
-| `ps` | `omnisess ps` (macOS) | `omnisess ps` (non-macOS) | Linux/Windows: SKIPPED — platform. |
+| `ps` | `omnisess ps` (macOS) | `omnisess ps` (non-macOS) | Covers claude + codex sessions when present (codex rows require a live codex process). Linux/Windows: SKIPPED — platform. |
 | `tui` | `timeout 2 ./omnisess-prerelease tui </dev/null 2>tui.stderr; check tui.stderr` for `panic:` / `fatal:` | — | 2-second timed launch — catches init-panic class. Interactive flow is OUT OF SCOPE (manual eyes only). |
 | `skills audit` | `omnisess skills audit --window 90d` | — | If `~/.claude/skills` doesn't exist: SKIPPED — no skills directory. |
 

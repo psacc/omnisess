@@ -17,8 +17,8 @@ import (
 
 var psCmd = &cobra.Command{
 	Use:   "ps",
-	Short: "Show active Claude sessions as a process tree",
-	Long:  "List live Claude Code sessions (CLI + Claude Desktop agent mode), grouped by shared ancestor chain up to launchd.",
+	Short: "Show active Claude and Codex sessions as a process tree",
+	Long:  "List live Claude Code sessions (CLI + Claude Desktop agent mode) and Codex sessions (CLI + Codex.app), grouped by shared ancestor chain up to launchd.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runPSWith(os.Stdout, procsnap.Enumerate, flagJSON)
 	},
@@ -48,7 +48,7 @@ func runPSWith(out io.Writer, enum enumerator, asJSON bool) error {
 	}
 
 	if len(snap.Sessions) == 0 {
-		fmt.Fprintln(out, "No live Claude sessions.")
+		fmt.Fprintln(out, "No live sessions.")
 		return nil
 	}
 	renderTree(out, snap)
@@ -115,8 +115,8 @@ func leafLabel(s procsnap.Session, now time.Time) string {
 	if entry == "claude-desktop" {
 		entry = "desktop"
 	}
-	return fmt.Sprintf("claude  %s  %s (%s)  %s  %s",
-		name, project, shortID(s.SessionID), entry, age)
+	return fmt.Sprintf("%s  %s  %s (%s)  %s  %s",
+		s.Tool, name, project, shortID(s.SessionID), entry, age)
 }
 
 func shortID(id string) string {

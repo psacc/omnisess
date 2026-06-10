@@ -55,6 +55,7 @@ func Enumerate() (Snapshot, error) {
 	sessions := make([]Session, 0, len(alive))
 	for _, f := range alive {
 		sessions = append(sessions, Session{
+			Tool:       ToolClaude,
 			PID:        f.PID,
 			SessionID:  f.SessionID,
 			Name:       f.Name,
@@ -65,5 +66,6 @@ func Enumerate() (Snapshot, error) {
 			Ancestors:  walkAncestors(f.PID, procs),
 		})
 	}
+	sessions = append(sessions, codexSessions(procs)...)
 	return Snapshot{Sessions: sessions, Built: time.Now()}, nil
 }

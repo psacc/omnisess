@@ -1,14 +1,15 @@
 ---
 name: ps
 description: |
-  Show live Claude Code sessions as a process tree, grouped by shared ancestor
-  chain up to launchd. Covers both CLI sessions and Claude Desktop agent mode.
+  Show live Claude Code and Codex sessions as a process tree, grouped by
+  shared ancestor chain up to launchd. Covers Claude CLI sessions, Claude
+  Desktop agent mode, and Codex sessions (CLI TUI + Codex.app threads).
   Use this skill when asked about the process tree, ancestor lineage, which
-  terminal or tmux window a Claude session is running in, or what's currently
-  running.
+  terminal or tmux window a Claude or Codex session is running in, or what's
+  currently running.
   Trigger phrases: "process tree", "what's running", "lineage", "ancestor chain",
   "which terminal is my claude in", "tmux tree", "claude process tree",
-  "session lineage".
+  "codex process tree", "session lineage".
   macOS-only: on other platforms the command prints "unsupported" and exits 0.
 license: MIT
 allowed-tools: Bash
@@ -19,7 +20,7 @@ metadata:
 
 # omnisess ps
 
-Show live Claude Code sessions as a process tree with ancestor lineage.
+Show live Claude Code and Codex sessions as a process tree with ancestor lineage.
 
 ## Usage
 
@@ -55,8 +56,9 @@ omnisess ps "$@"
 
 - **macOS-only.** On other platforms the command prints
   `omnisess ps: unsupported on this platform (macOS only)` and exits 0.
-- Detects CLI Claude sessions (launched from a terminal, tmux, etc.) and
-  Claude Desktop agent-mode sessions.
+- Detects CLI Claude sessions (launched from a terminal, tmux, etc.),
+  Claude Desktop agent-mode sessions, and live Codex sessions (any `codex`
+  process holding its rollout file open — CLI TUI and Codex.app threads).
 - Tree is rooted at shared ancestors (typically `/sbin/launchd` and `tmux`)
   so you can see which terminal, tmux pane, or desktop app hosts each session.
 
@@ -72,5 +74,7 @@ omnisess ps "$@"
 └─ tmux (9050)
    ├─ /bin/bash (23512)
    │  └─ claude  b9f52b71  finn (b9f52b71)  cli  58s
+   ├─ /bin/bash (41200)
+   │  └─ codex  019e88aa  my-project (019e88aa)  codex-tui  2h
    └─ claude  232347cd  ai-assistant-pyra (232347cd)  cli  12m
 ```

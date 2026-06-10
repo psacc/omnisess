@@ -100,6 +100,12 @@ func TestEnumerate_NoSessionsDir(t *testing.T) {
 	}
 	t.Cleanup(func() { sessionsDirFn = origDir })
 
+	// Stub ps so the codex path sees no candidate processes — without this
+	// the test would enumerate real live codex sessions on the host.
+	origPS := psRunnerFn
+	psRunnerFn = func() ([]byte, error) { return nil, nil }
+	t.Cleanup(func() { psRunnerFn = origPS })
+
 	snap, err := Enumerate()
 	if err != nil {
 		t.Fatalf("missing dir must not error: %v", err)

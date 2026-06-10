@@ -45,7 +45,7 @@ func TestRunPS_EmptySessions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !bytes.Contains(buf.Bytes(), []byte("No live Claude sessions.")) {
+	if !bytes.Contains(buf.Bytes(), []byte("No live sessions.")) {
 		t.Errorf("expected empty-sessions notice, got %q", buf.String())
 	}
 }
@@ -289,23 +289,36 @@ func TestLeafLabel(t *testing.T) {
 		{
 			name: "named-cli",
 			session: procsnap.Session{
+				Tool:       procsnap.ToolClaude,
 				SessionID:  "abcdef1234",
 				Name:       "refactor auth",
 				CWD:        "/Users/me/prj/foo",
 				StartedAt:  now.Add(-30 * time.Second),
 				Entrypoint: "cli",
 			},
-			want: []string{"refactor auth", "foo", "abcdef12", "cli", "30s"},
+			want: []string{"claude", "refactor auth", "foo", "abcdef12", "cli", "30s"},
 		},
 		{
 			name: "unnamed-desktop",
 			session: procsnap.Session{
+				Tool:       procsnap.ToolClaude,
 				SessionID:  "xyz99999000",
 				CWD:        "/Users/me/prj/bar",
 				StartedAt:  now.Add(-2 * time.Hour),
 				Entrypoint: "claude-desktop",
 			},
-			want: []string{"xyz99999", "bar", "desktop", "2h"},
+			want: []string{"claude", "xyz99999", "bar", "desktop", "2h"},
+		},
+		{
+			name: "codex-tui",
+			session: procsnap.Session{
+				Tool:       procsnap.ToolCodex,
+				SessionID:  "019e0000-aaaa-7000-8000-000000000000",
+				CWD:        "/Users/me/prj/baz",
+				StartedAt:  now.Add(-3 * time.Minute),
+				Entrypoint: "codex-tui",
+			},
+			want: []string{"codex", "019e0000", "baz", "codex-tui", "3m"},
 		},
 	}
 	for _, tc := range cases {
@@ -358,7 +371,8 @@ func TestRenderTree_LastChildOfRootKeepsConnector(t *testing.T) {
 		Sessions: []procsnap.Session{
 			// One claude under iTerm2 → launchd.
 			{
-				PID: 100, SessionID: "aaaaaaaa", Name: "sess-a",
+				Tool: procsnap.ToolClaude,
+				PID:  100, SessionID: "aaaaaaaa", Name: "sess-a",
 				CWD: "/x/a", StartedAt: time.Now().Add(-1 * time.Minute), Entrypoint: "cli",
 				Ancestors: []procsnap.Ancestor{
 					{PID: 50, Command: "iTerm2"},
@@ -368,7 +382,8 @@ func TestRenderTree_LastChildOfRootKeepsConnector(t *testing.T) {
 			// One claude under tmux → launchd. tmux sorts AFTER iTerm2,
 			// so it is the LAST child of launchd — the bug trigger.
 			{
-				PID: 101, SessionID: "bbbbbbbb", Name: "sess-b",
+				Tool: procsnap.ToolClaude,
+				PID:  101, SessionID: "bbbbbbbb", Name: "sess-b",
 				CWD: "/x/b", StartedAt: time.Now().Add(-1 * time.Minute), Entrypoint: "cli",
 				Ancestors: []procsnap.Ancestor{
 					{PID: 60, Command: "tmux"},
