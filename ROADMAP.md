@@ -57,5 +57,4 @@ Informs resume/kill semantics for scheduled agents and worktree-aware session li
 
 - [ ] Antigravity CLI source — on hold, deliberately unscheduled (successor to the dropped Gemini stub)
 - [ ] `recap` consuming `digest` output as a richer LLM source than list previews
-- [ ] Compare varda (Rust task-routing CLI) for overlap and fit
 - [ ] Copilot digest noise: strip verbose VS Code `command:…openSymbolFromReferences` URLs (no issue filed yet)
