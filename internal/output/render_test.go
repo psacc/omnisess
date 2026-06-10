@@ -655,3 +655,67 @@ func TestSanitizeSession_JSONRoundTrip(t *testing.T) {
 		t.Errorf("round-trip content = %q, want %q", parsed.Messages[0].Content, wantContent)
 	}
 }
+
+// TestRenderTable_StatusVariants covers the three statusCell arms and the
+// #74 column changes: ID column present, UPDATED (last activity) shown
+// instead of STARTED.
+func TestRenderTable_StatusVariants(t *testing.T) {
+	started := time.Date(2026, 4, 1, 10, 0, 0, 0, time.Local)
+	updated := time.Date(2026, 6, 9, 18, 30, 0, 0, time.Local)
+	sessions := []model.Session{
+		{ID: "11111111-aaaa-7bbb-8ccc-000000000001", Tool: model.ToolClaude, Project: "/tmp/p1", StartedAt: started, UpdatedAt: updated, Active: true, Status: "busy"},
+		{ID: "22222222-aaaa-7bbb-8ccc-000000000002", Tool: model.ToolCodex, Project: "/tmp/p2", StartedAt: started, UpdatedAt: updated, Active: true},
+		{ID: "33333333-aaaa-7bbb-8ccc-000000000003", Tool: model.ToolCursor, Project: "/tmp/p3", StartedAt: started, UpdatedAt: updated},
+	}
+
+	var buf bytes.Buffer
+	renderTable(&buf, sessions)
+	got := buf.String()
+
+	if !strings.Contains(got, "ACTIVE (busy)") {
+		t.Error("expected 'ACTIVE (busy)' for an active session with registry status")
+	}
+	if !strings.Contains(got, "ID") || !strings.Contains(got, "UPDATED") {
+		t.Error("expected ID and UPDATED header columns")
+	}
+	if strings.Contains(got, "STARTED") {
+		t.Error("STARTED column should be gone — the table sorts by UpdatedAt and must display it")
+	}
+	if !strings.Contains(got, "11111111") {
+		t.Error("expected short session ID in the row")
+	}
+	if !strings.Contains(got, "2026-06-09") {
+		t.Error("expected the UpdatedAt date, not StartedAt")
+	}
+	if strings.Contains(got, "2026-04-01") {
+		t.Error("StartedAt date must not be rendered in the table")
+	}
+	// Inactive row renders "-"; active-without-status renders plain ACTIVE.
+	if !strings.Contains(got, "ACTIVE\n") && !strings.Contains(got, "ACTIVE \n") {
+		// plain ACTIVE row (codex, no status) ends the line
+		t.Error("expected a plain ACTIVE status for the active session without registry status")
+	}
+}
+
+// TestRenderSessionDetail_Status covers the status line and Updated line in
+// the detail view.
+func TestRenderSessionDetail_Status(t *testing.T) {
+	s := &model.Session{
+		ID:        "44444444-aaaa-7bbb-8ccc-000000000004",
+		Tool:      model.ToolClaude,
+		Project:   "/tmp/p4",
+		StartedAt: time.Date(2026, 6, 1, 9, 0, 0, 0, time.Local),
+		UpdatedAt: time.Date(2026, 6, 9, 18, 30, 0, 0, time.Local),
+		Active:    true,
+		Status:    "idle",
+	}
+	var buf bytes.Buffer
+	renderSessionDetail(&buf, s)
+	got := buf.String()
+	if !strings.Contains(got, "ACTIVE (idle)") {
+		t.Error("expected detail status 'ACTIVE (idle)'")
+	}
+	if !strings.Contains(got, "Updated:") {
+		t.Error("expected Updated line in detail view")
+	}
+}

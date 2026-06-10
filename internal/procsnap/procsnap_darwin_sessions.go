@@ -16,6 +16,7 @@ type sessionFile struct {
 	PID        int
 	SessionID  string
 	Name       string
+	Status     string
 	CWD        string
 	StartedAt  time.Time
 	Version    string
@@ -27,6 +28,7 @@ type rawSessionFile struct {
 	PID        int    `json:"pid"`
 	SessionID  string `json:"sessionId"`
 	Name       string `json:"name"`
+	Status     string `json:"status"`
 	CWD        string `json:"cwd"`
 	StartedAt  int64  `json:"startedAt"` // unix millis
 	Version    string `json:"version"`
@@ -69,6 +71,7 @@ func scanSessionDir(dir string) ([]sessionFile, error) {
 			PID:        raw.PID,
 			SessionID:  raw.SessionID,
 			Name:       raw.Name,
+			Status:     raw.Status,
 			CWD:        raw.CWD,
 			StartedAt:  time.UnixMilli(raw.StartedAt),
 			Version:    raw.Version,

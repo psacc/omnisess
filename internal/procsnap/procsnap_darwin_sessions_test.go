@@ -26,6 +26,9 @@ func TestScanSessionDir_HappyPath(t *testing.T) {
 	if got.SessionID != "eaa9deaf-6c97-4233-9629-9c425ebf4457" {
 		t.Errorf("wrong sessionId: %q", got.SessionID)
 	}
+	if got.Status != "busy" {
+		t.Errorf("status not parsed: %q", got.Status)
+	}
 	if got.Name != "refactor auth" {
 		t.Errorf("name not parsed: %q", got.Name)
 	}

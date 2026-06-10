@@ -2,8 +2,10 @@
 name: active
 description: |
   Show currently active AI coding sessions (Claude Code, Cursor, Codex, GitHub Copilot CLI).
-  A session is active if the underlying process is alive and the session file was modified
-  within the last 2 minutes.
+  A session is active if a live process is attributable to it: Claude Code via the
+  ~/.claude/sessions registry (with per-session status: busy/idle/waiting/...), Codex via
+  its open rollout file — the same correlation `omnisess ps` uses, so the two reconcile.
+  Cursor/Copilot fall back to process-alive + recent transcript activity.
   Use this skill when asked about active sessions, running sessions, what is currently open,
   or which AI tools are in use right now.
   Trigger phrases: "active sessions", "running sessions", "what's open", "current sessions",
@@ -45,12 +47,19 @@ omnisess active "$@"
 
 ## Notes
 
-A session is considered active when:
-- The underlying process (claude, cursor, etc.) is alive in the process table
-- The session file was modified less than 2 minutes ago
+A session is considered active when a live process is attributable to it:
+- Claude Code: a `~/.claude/sessions/<PID>.json` registry entry with a live PID; the
+  registry status (busy/idle/waiting/...) is shown in the STATUS column
+- Codex: a live codex process holding the session's rollout file open
+- Cursor / Copilot (fallback): the tool's process is alive AND the transcript was
+  modified within the last 10 minutes
+
+The same correlation backs `omnisess ps`, so every claude/codex row here maps to a
+process in the `ps` tree (cross-reference via the ID column).
 
 ## Example output
 
 ```
-claude:5c3f2742  ~/prj/myapp  (process alive, modified 47s ago)
+TOOL     ID         PROJECT      BRANCH  PREVIEW       UPDATED            STATUS
+claude   5c3f2742   prj/myapp    main    fix the bug   2026-06-10 15:14   ACTIVE (busy)
 ```

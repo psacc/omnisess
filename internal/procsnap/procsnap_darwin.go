@@ -59,6 +59,7 @@ func Enumerate() (Snapshot, error) {
 			PID:        f.PID,
 			SessionID:  f.SessionID,
 			Name:       f.Name,
+			Status:     f.Status,
 			CWD:        f.CWD,
 			StartedAt:  f.StartedAt,
 			Entrypoint: f.Entrypoint,

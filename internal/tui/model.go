@@ -119,8 +119,13 @@ func ApplySnapshot(sessions []model.Session, snap procsnap.Snapshot) []model.Ses
 		}
 		live, ok := bySessionID[sessions[i].ID]
 		sessions[i].Active = ok
-		if ok && live.Name != "" {
-			sessions[i].Title = live.Name
+		if ok {
+			sessions[i].Status = live.Status
+			if live.Name != "" {
+				sessions[i].Title = live.Name
+			}
+		} else {
+			sessions[i].Status = ""
 		}
 	}
 	return sessions

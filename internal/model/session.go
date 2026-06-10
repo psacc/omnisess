@@ -31,8 +31,10 @@ type Session struct {
 	StartedAt time.Time `json:"StartedAt"`
 	UpdatedAt time.Time `json:"UpdatedAt"`
 	Active    bool      `json:"Active"`
-	Messages  []Message `json:"Messages,omitempty"`
-	Preview   string    `json:"Preview,omitempty"`
+	Status    string    `json:"Status,omitempty"` // live-process status (claude registry: busy/idle/waiting/shell/...); set only when Active
+
+	Messages []Message `json:"Messages,omitempty"`
+	Preview  string    `json:"Preview,omitempty"`
 }
 
 // QualifiedID returns the tool-prefixed session ID (e.g., "claude:5c3f2742").

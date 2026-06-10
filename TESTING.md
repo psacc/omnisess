@@ -47,7 +47,7 @@ For each command, the agent runs one **golden** invocation and one **designed-to
 | `version` | `omnisess version` | — | Must print a version matching the prep PR's SKILL.md bump. |
 | `list` | `omnisess list --limit 5` | `omnisess list --since not-a-duration` | Synthetic fallback: no fixture, the command should just produce "0 sessions". |
 | `search` | `omnisess search "the"` (very common word, will match) | `omnisess search ""` | Empty query should error cleanly, not hang. |
-| `active` | `omnisess active` | — | Output may legitimately be empty; check for clean exit. |
+| `active` | `omnisess active` | — | Output may legitimately be empty; check for clean exit. On macOS, every claude/codex row must correspond to a live process in `omnisess ps` (one shared snapshot — #74); rows show ID, UPDATED, and `ACTIVE (<status>)`. |
 | `show` | `omnisess show <tool>:<id>` for a real session (or synthetic) | `omnisess show unknown:abc` | Error message must list every registered source (drift guard from FUP-D). |
 | `digest` | `omnisess digest --date <today>` | `omnisess digest --date not-a-date` | Output must be valid UTF-8 (regression guard for FUP-B). Synthetic fallback: write one fake session under `$TMPDIR/omnisess-qa/claude/`. |
 | `ps` | `omnisess ps` (macOS) | `omnisess ps` (non-macOS) | Covers claude + codex sessions when present (codex rows require a live codex process). Linux/Windows: SKIPPED — platform. |
