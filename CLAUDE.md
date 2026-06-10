@@ -55,6 +55,11 @@ docs/design-docs/           Design decisions
 5. Session IDs are always displayed as `<tool>:<id>` (e.g., `claude:5c3f2742`)
 6. Home directory resolved at runtime via `os.UserHomeDir()`
 7. All local data is READ-ONLY — this tool never modifies source files
+8. This repo is public: no private references in any committed content or
+   commit message — no real local paths, emails, tracker IDs, or session IDs.
+   Enforced by `make redaction-check` (part of `make check`) and the
+   `commit-msg` hook. Every PR requires the owner's explicit approval before
+   merge — agents never self-merge.
 
 ## Build & Test
 

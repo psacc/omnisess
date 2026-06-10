@@ -1,4 +1,4 @@
-.PHONY: all build test test-integ cover cover-check cover-html lint vet fmt check clean setup install-lint pr install smoke tag release bump-skills repo-setup help
+.PHONY: all build test test-integ cover cover-check cover-html lint vet fmt check redaction-check clean setup install-lint pr install smoke tag release bump-skills repo-setup help
 
 GOLANGCI_LINT_VERSION ?= v2.12.1
 
@@ -64,8 +64,11 @@ vet: ## Run go vet
 fmt: ## Run gofmt
 	gofmt -w .
 
-# Full pre-commit check: fmt + vet + lint + test
-check: fmt vet lint test ## Full pre-commit check: fmt + vet + lint + test
+redaction-check: ## Block private references (paths, emails, real session IDs) in tracked files
+	@bash scripts/check_redaction.sh
+
+# Full pre-commit check: fmt + vet + lint + test + redaction
+check: fmt vet lint test redaction-check ## Full pre-commit check: fmt + vet + lint + test + redaction
 
 # Push current branch and open a GitHub PR
 # Usage: make pr

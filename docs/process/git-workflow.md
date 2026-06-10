@@ -30,22 +30,28 @@ make repo-setup
 
 This is idempotent — safe to re-run at any time. Run `make repo-setup FORCE=1` to overwrite stricter manually-applied settings.
 
-## 3. When to Branch vs. Commit to Main
+## 3. Every Change Goes Through a PR
 
-**Commit directly to `main`** only when ALL of these are true:
+**There is no direct-to-main path.** Branch protection rejects direct pushes,
+and that is intentional. Every change — including doc-only and config-only
+changes — goes through a branch and a pull request.
 
-- The change is doc-only (`.md` files, comments) OR config-only (`.golangci.yml`, `Makefile`)
-- No Go source files are touched
-- `make check` passes
-
-**Create a branch** when ANY of these is true:
-
-- Go source files change (`.go`)
-- Test files change
-- `go.mod` or `go.sum` change
-- The change spans more than one commit
+**Every PR requires an explicit go from the repository owner before merging.**
+This repo is public: nothing lands on `main` without the owner's approval, no
+matter how small or mechanical the change. Agents must never self-merge; CI
+green is necessary but not sufficient.
 
 When in doubt, branch. Branches are free; broken main is not.
+
+### Redaction guard
+
+`make check` (and therefore the pre-commit hook and CI) includes
+`make redaction-check`: tracked files must not contain non-placeholder local
+paths, emails outside the allowlist, or real session IDs. The `commit-msg`
+hook runs the same guard on commit messages. Developers can add machine-local
+forbidden literals in `$GIT_DIR/info/redaction-denylist` (never tracked).
+Before submitting any PR, the body must pass the same standard — see
+`.github/pull_request_template.md`.
 
 ## 4. Commit Messages
 
