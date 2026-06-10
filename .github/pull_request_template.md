@@ -18,6 +18,7 @@
 - [ ] `make check` passes
 - [ ] `make cover-check` passes (100% per-package)
 - [ ] `make smoke` passes
+- [ ] `make redaction-check` passes, and this PR body itself contains no private references (paths, emails, tracker IDs, session IDs)
 - [ ] Relevant `omnisess` subcommand tested against real data
 - [ ] If touching string-slicing or path-prefix logic: includes a non-ASCII or prefix-colliding fixture (the `utf8.ValidString` tripwire in `cmd/cmd_test.go` catches the former)
 

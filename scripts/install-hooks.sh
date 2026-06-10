@@ -10,7 +10,7 @@ GIT_DIR="$(git -C "$REPO_ROOT" rev-parse --git-dir)"
 HOOK_DIR="$GIT_DIR/hooks"
 mkdir -p "$HOOK_DIR"
 
-for hook in pre-commit pre-push; do
+for hook in pre-commit commit-msg pre-push; do
   src="$REPO_ROOT/scripts/$hook"
   dst="$HOOK_DIR/$hook"
   ln -sf "$src" "$dst"
