@@ -37,6 +37,7 @@ func sanitizeSession(s *model.Session) model.Session {
 	out.Project = sanitizeString(out.Project)
 	out.Branch = sanitizeString(out.Branch)
 	out.Model = sanitizeString(out.Model)
+	out.Status = sanitizeString(out.Status)
 
 	if len(s.Messages) > 0 {
 		out.Messages = make([]model.Message, len(s.Messages))
@@ -152,22 +153,34 @@ func renderTable(w io.Writer, sessions []model.Session) {
 	}
 
 	// Header
-	fmt.Fprintf(w, "%-8s %-28s %-18s %-50s %-18s %s\n",
-		"TOOL", "PROJECT", "BRANCH", "PREVIEW", "STARTED", "STATUS")
-	fmt.Fprintln(w, strings.Repeat("-", 140))
+	fmt.Fprintf(w, "%-8s %-10s %-28s %-18s %-50s %-18s %s\n",
+		"TOOL", "ID", "PROJECT", "BRANCH", "PREVIEW", "UPDATED", "STATUS")
+	fmt.Fprintln(w, strings.Repeat("-", 148))
 
 	for _, s := range sessions {
-		status := "-"
-		if s.Active {
-			status = "ACTIVE"
-		}
 		branch := truncate(s.Branch, 16)
 		project := truncate(s.ShortProject(), 26)
 		preview := truncate(s.Preview, 48)
-		started := s.StartedAt.Local().Format("2006-01-02 15:04")
+		// Last activity, not session birth: the table is sorted by
+		// UpdatedAt, so the visible timestamp must match the sort key.
+		updated := s.UpdatedAt.Local().Format("2006-01-02 15:04")
 
-		fmt.Fprintf(w, "%-8s %-28s %-18s %-50s %-18s %s\n",
-			s.Tool, project, branch, preview, started, status)
+		fmt.Fprintf(w, "%-8s %-10s %-28s %-18s %-50s %-18s %s\n",
+			s.Tool, s.ShortID(), project, branch, preview, updated, statusCell(s))
+	}
+}
+
+// statusCell renders the STATUS column: the live-process status when known
+// ("ACTIVE (busy)"), plain "ACTIVE" for live sessions without a status
+// signal, "-" otherwise.
+func statusCell(s model.Session) string {
+	switch {
+	case s.Active && s.Status != "":
+		return fmt.Sprintf("ACTIVE (%s)", s.Status)
+	case s.Active:
+		return "ACTIVE"
+	default:
+		return "-"
 	}
 }
 
@@ -181,8 +194,9 @@ func renderSessionDetail(w io.Writer, s *model.Session) {
 		fmt.Fprintf(w, "Model:   %s\n", s.Model)
 	}
 	fmt.Fprintf(w, "Started: %s\n", s.StartedAt.Local().Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(w, "Updated: %s\n", s.UpdatedAt.Local().Format("2006-01-02 15:04:05"))
 	if s.Active {
-		fmt.Fprintf(w, "Status:  ACTIVE\n")
+		fmt.Fprintf(w, "Status:  %s\n", statusCell(*s))
 	}
 	fmt.Fprintln(w)
 

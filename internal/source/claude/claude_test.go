@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/psacc/omnisess/internal/model"
+	"github.com/psacc/omnisess/internal/procsnap"
 	"github.com/psacc/omnisess/internal/source"
 )
 
@@ -632,7 +633,7 @@ func TestFindOrphanSessions(t *testing.T) {
 	t.Run("returns orphans not in seenIDs", func(t *testing.T) {
 		// No sessions in seenIDs, so all session files on disk are orphans
 		seenIDs := map[string]bool{}
-		orphans, err := findOrphanSessions(seenIDs, false)
+		orphans, err := findOrphanSessions(seenIDs, false, procsnap.Snapshot{}, false)
 		if err != nil {
 			t.Fatalf("findOrphanSessions() error: %v", err)
 		}
@@ -651,7 +652,7 @@ func TestFindOrphanSessions(t *testing.T) {
 			"abc12345-1234-5678-9abc-def012345678": true,
 			"def67890-aaaa-bbbb-cccc-111122223333": true,
 		}
-		orphans, err := findOrphanSessions(seenIDs, false)
+		orphans, err := findOrphanSessions(seenIDs, false, procsnap.Snapshot{}, false)
 		if err != nil {
 			t.Fatalf("findOrphanSessions() error: %v", err)
 		}
@@ -668,7 +669,7 @@ func TestFindOrphanSessions(t *testing.T) {
 		if err := os.MkdirAll(filepath.Join(emptyHome, ".claude"), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		orphans, err := findOrphanSessions(map[string]bool{}, false)
+		orphans, err := findOrphanSessions(map[string]bool{}, false, procsnap.Snapshot{}, false)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -1708,7 +1709,7 @@ func TestFindSessionFile_GlobError(t *testing.T) {
 
 func TestFindOrphanSessions_GlobError(t *testing.T) {
 	t.Setenv("HOME", "/home/[invalidbracket")
-	_, err := findOrphanSessions(map[string]bool{}, false)
+	_, err := findOrphanSessions(map[string]bool{}, false, procsnap.Snapshot{}, false)
 	if err == nil {
 		t.Fatal("expected glob error for malformed HOME path, got nil")
 	}
@@ -1768,7 +1769,7 @@ func TestFindSessionFileForProject_HomeDirErrorDirect(t *testing.T) {
 
 func TestFindOrphanSessions_HomeDirError(t *testing.T) {
 	t.Setenv("HOME", "")
-	_, err := findOrphanSessions(map[string]bool{}, false)
+	_, err := findOrphanSessions(map[string]bool{}, false, procsnap.Snapshot{}, false)
 	if err == nil {
 		t.Fatal("expected error when HOME is empty, got nil")
 	}
@@ -2451,12 +2452,12 @@ func TestFindOrphanSessions_Deterministic(t *testing.T) {
 		t.Fatalf("write orphan: %v", err)
 	}
 
-	first, err := findOrphanSessions(map[string]bool{}, false)
+	first, err := findOrphanSessions(map[string]bool{}, false, procsnap.Snapshot{}, false)
 	if err != nil {
 		t.Fatalf("findOrphanSessions: %v", err)
 	}
 	for i := 0; i < 5; i++ {
-		got, err := findOrphanSessions(map[string]bool{}, false)
+		got, err := findOrphanSessions(map[string]bool{}, false, procsnap.Snapshot{}, false)
 		if err != nil {
 			t.Fatalf("findOrphanSessions iter %d: %v", i, err)
 		}
@@ -2709,5 +2710,129 @@ func TestSearchSessionPeek_NoSessionFile(t *testing.T) {
 	out := searchSessionPeek(model.Session{ID: "no-such-id", Project: "/no/such/project"}, "query", "query")
 	if out.hit {
 		t.Errorf("expected hit=false when session file is unresolvable")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// snapshotFn seam: the unified "active" definition (#74). TestMain pins the
+// seam to "snapshot unavailable" so every pre-existing test deterministically
+// exercises the mtime fallback regardless of host platform or live registry
+// state; the tests below inject fake snapshots for the registry path.
+// ---------------------------------------------------------------------------
+
+func TestMain(m *testing.M) {
+	snapshotFn = func() (procsnap.Snapshot, error) {
+		return procsnap.Snapshot{}, procsnap.ErrUnsupported
+	}
+	os.Exit(m.Run())
+}
+
+// withSnapshot swaps the package-level snapshot seam for the duration of a
+// test. Restores the TestMain default on cleanup.
+func withSnapshot(t *testing.T, snap procsnap.Snapshot, err error) {
+	t.Helper()
+	orig := snapshotFn
+	snapshotFn = func() (procsnap.Snapshot, error) { return snap, err }
+	t.Cleanup(func() { snapshotFn = orig })
+}
+
+// TestList_SnapshotRoutesActive: with a usable snapshot, activeness comes
+// from registry correlation only — a session ID present in the snapshot is
+// active (with its status), every other session is inactive even though the
+// fixture transcripts were written milliseconds ago (recent mtime) and even
+// if a claude process is running. This is the core #74 behavior change.
+func TestList_SnapshotRoutesActive(t *testing.T) {
+	home := setupFakeHome(t)
+	setHome(t, home)
+	withIsToolRunning(t, func(tool string) bool { return true })
+	withSnapshot(t, procsnap.Snapshot{Sessions: []procsnap.Session{
+		{Tool: procsnap.ToolClaude, SessionID: "abc12345-1234-5678-9abc-def012345678", Status: "busy", PID: 1234},
+	}}, nil)
+
+	s := &claudeSource{}
+	sessions, err := s.List(source.ListOptions{})
+	if err != nil {
+		t.Fatalf("List() error: %v", err)
+	}
+	if len(sessions) == 0 {
+		t.Fatal("expected sessions")
+	}
+	for _, sess := range sessions {
+		if sess.ID == "abc12345-1234-5678-9abc-def012345678" {
+			if !sess.Active {
+				t.Error("registry-correlated session must be active")
+			}
+			if sess.Status != "busy" {
+				t.Errorf("status = %q, want busy", sess.Status)
+			}
+			continue
+		}
+		if sess.Active {
+			t.Errorf("session %q active without a registry entry (recent mtime must not count when the snapshot is usable)", sess.ID)
+		}
+		if sess.Status != "" {
+			t.Errorf("session %q carries status %q without a registry entry", sess.ID, sess.Status)
+		}
+	}
+}
+
+// TestList_OrphanSnapshotRoutesActive covers the registry arm inside
+// peekOrphanFile: an orphan session file (absent from history.jsonl) whose
+// ID is in the snapshot is active with its status.
+func TestList_OrphanSnapshotRoutesActive(t *testing.T) {
+	home := t.TempDir()
+	projDir := filepath.Join(home, ".claude", "projects", "-tmp-orphsnap")
+	if err := os.MkdirAll(projDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".claude", "history.jsonl"), []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sessData, err := os.ReadFile("testdata/session_simple.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const orphanID = "orpha999-1234-5678-9abc-def012345678"
+	if err := os.WriteFile(filepath.Join(projDir, orphanID+".jsonl"), sessData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	setHome(t, home)
+	withSnapshot(t, procsnap.Snapshot{Sessions: []procsnap.Session{
+		{Tool: procsnap.ToolClaude, SessionID: orphanID, Status: "idle", PID: 4321},
+	}}, nil)
+
+	s := &claudeSource{}
+	sessions, err := s.List(source.ListOptions{})
+	if err != nil {
+		t.Fatalf("List() error: %v", err)
+	}
+	if len(sessions) != 1 {
+		t.Fatalf("expected 1 orphan session, got %d", len(sessions))
+	}
+	if !sessions[0].Active || sessions[0].Status != "idle" {
+		t.Errorf("orphan = (active=%v, status=%q), want (true, idle)", sessions[0].Active, sessions[0].Status)
+	}
+}
+
+// TestGet_SnapshotRoutesActive covers liveSnapshot's success branch and
+// activeStatus's registry arm on the Get path.
+func TestGet_SnapshotRoutesActive(t *testing.T) {
+	home := setupFakeHome(t)
+	setHome(t, home)
+	withSnapshot(t, procsnap.Snapshot{Sessions: []procsnap.Session{
+		{Tool: procsnap.ToolClaude, SessionID: "abc12345-1234-5678-9abc-def012345678", Status: "waiting", PID: 7},
+	}}, nil)
+
+	s := &claudeSource{}
+	sess, err := s.Get("abc12345-1234-5678-9abc-def012345678")
+	if err != nil {
+		t.Fatalf("Get() error: %v", err)
+	}
+	if sess == nil {
+		t.Fatal("expected session")
+	}
+	if !sess.Active || sess.Status != "waiting" {
+		t.Errorf("Get = (active=%v, status=%q), want (true, waiting)", sess.Active, sess.Status)
 	}
 }

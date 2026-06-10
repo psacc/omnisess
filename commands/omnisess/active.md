@@ -1,5 +1,5 @@
 ---
-description: Show currently active AI coding sessions — those whose process is alive and session file was modified within the last 2 minutes.
+description: Show currently active AI coding sessions — those with a live attributable process (Claude registry / Codex open rollout; process+mtime fallback for Cursor/Copilot).
 argument-hint: "(none)"
 allowed-tools: Bash
 ---

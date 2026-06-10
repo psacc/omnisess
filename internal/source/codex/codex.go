@@ -12,6 +12,7 @@ import (
 
 	"github.com/psacc/omnisess/internal/detect"
 	"github.com/psacc/omnisess/internal/model"
+	"github.com/psacc/omnisess/internal/procsnap"
 	"github.com/psacc/omnisess/internal/source"
 )
 
@@ -122,6 +123,26 @@ func loadHistory() ([]*sessionAccumulator, error) {
 	return accs, nil
 }
 
+// snapshotFn is the function used to obtain the shared live-process
+// snapshot (one memoized enumeration per CLI run). Overridable so tests can
+// inject fake snapshots — and the lsof-vs-fallback branches — on any
+// platform.
+var snapshotFn = procsnap.Cached
+
+// activeStatus resolves activeness for one codex session: a live codex
+// process holding the session's rollout file open (the shared snapshot's
+// lsof correlation) when available, the process+mtime heuristic otherwise.
+func activeStatus(sessionID, sessionFilePath string) (bool, string) {
+	if snap, err := snapshotFn(); err == nil {
+		live, found := snap.Lookup(sessionID)
+		return found, live.Status
+	}
+	if sessionFilePath == "" {
+		return false, ""
+	}
+	return detect.IsSessionActive("codex", sessionFilePath), ""
+}
+
 // List returns Codex sessions ordered by most recent first.
 // Messages are NOT populated.
 func (s *codexSource) List(opts source.ListOptions) ([]model.Session, error) {
@@ -156,11 +177,8 @@ func (s *codexSource) List(opts source.ListOptions) ([]model.Session, error) {
 			cwd = readSessionCwd(sessionFilePath)
 		}
 
-		// Check active status
-		active := false
-		if sessionFilePath != "" {
-			active = detect.IsSessionActive("codex", sessionFilePath)
-		}
+		// Check active status (snapshot-correlated, heuristic fallback)
+		active, status := activeStatus(acc.sessionID, sessionFilePath)
 
 		// Apply filters
 		if opts.Active && !active {
@@ -189,6 +207,7 @@ func (s *codexSource) List(opts source.ListOptions) ([]model.Session, error) {
 			StartedAt: acc.earliest,
 			UpdatedAt: updatedAt,
 			Active:    active,
+			Status:    status,
 			Preview:   preview,
 		})
 	}
@@ -246,7 +265,7 @@ func (s *codexSource) Get(sessionID string) (*model.Session, error) {
 		}
 	}
 
-	active := detect.IsSessionActive("codex", sessionFilePath)
+	active, status := activeStatus(fullID, sessionFilePath)
 
 	// Apply project filter on cwd
 	sess := &model.Session{
@@ -257,6 +276,7 @@ func (s *codexSource) Get(sessionID string) (*model.Session, error) {
 		StartedAt: startedAt,
 		UpdatedAt: updatedAt,
 		Active:    active,
+		Status:    status,
 		Messages:  messages,
 		Preview:   preview,
 	}

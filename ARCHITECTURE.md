@@ -45,8 +45,8 @@ Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.copilot/
 - **internal/source/codex/** — Parses `~/.codex/history.jsonl` + session JSONL files.
 - **internal/source/copilot/** — Parses `~/.copilot/session-state/<uuid>/{events.jsonl,vscode.metadata.json}` for GitHub Copilot CLI sessions.
 - **internal/index/** — SQLite transcript cache. `Index` interface (`EnsureSession`, `QuerySession`, `QueryWindow`), OTel GenAI-aligned schema, `(mtime, size, has_full_payloads)` invalidation key, one transaction per session. Source-agnostic — converts via `SessionFromModel(*model.Session, providerName)`.
-- **internal/detect/process.go** — `IsProcessRunning(name)` and `IsFileRecentlyModified(path, threshold)`.
-- **internal/procsnap/** — Live-process correlation for Claude and Codex sessions (macOS only). `Enumerate()` scans `~/.claude/sessions/<PID>.json` for Claude (filters alive PIDs) and, for Codex, maps `codex` processes to the rollout JSONLs they hold open via one `lsof` call, parsing each rollout's `session_meta` first line. Walks ancestors via `ps`. Returns `ErrUnsupported` off darwin.
+- **internal/detect/process.go** — `IsProcessRunning(name)` and `IsFileRecentlyModified(path, threshold)`. Since #74 this is the *fallback* activeness heuristic only (Cursor/Copilot, and Claude/Codex when `procsnap` is unavailable).
+- **internal/procsnap/** — Live-process correlation for Claude and Codex sessions (macOS only). `Enumerate()` scans `~/.claude/sessions/<PID>.json` for Claude (filters alive PIDs) and, for Codex, maps `codex` processes to the rollout JSONLs they hold open via one `lsof` call, parsing each rollout's `session_meta` first line. Walks ancestors via `ps`. Returns `ErrUnsupported` off darwin. `Cached()` memoizes one snapshot per CLI run — the single authority for "active" that the claude/codex sources, `active`, `list`, and `ps` all share (#74).
 - **internal/output/render.go** — `RenderTable()` and `RenderJSON()` dispatched by format flag.
 - **~~internal/search/search.go~~** — Planned, not yet implemented. Search currently lives in `cmd/search.go`.
 

@@ -15,7 +15,7 @@ CLI tool that aggregates AI coding sessions across Claude Code, Cursor, Codex, a
 - **Session**: A single conversation between a user and an AI coding assistant. Has an ID, tool name, project path, messages, and timestamps.
 - **Message**: A single turn in a session (user, assistant, or tool role).
 - **SearchResult**: A Session + matched message snippets.
-- **Active Detection**: Heuristic to determine if a session is currently running (process alive AND file modified < 2 min ago).
+- **Active Detection**: A session is active iff a live OS process is attributable to its exact session ID (Claude: `~/.claude/sessions/<PID>.json` registry; Codex: lsof-held rollout file) — one shared `procsnap` snapshot per CLI run, so `active ⊆ ps`. Fallback where no per-process signal exists (Cursor, Copilot, non-macOS): tool process alive AND transcript tree modified within 10 min (`detect.ActiveThreshold`). Registry `status` (open enum: busy/idle/waiting/shell/…) is surfaced on `Session.Status`, never used as a gate.
 
 ## Repository Layout
 

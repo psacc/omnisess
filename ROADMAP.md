@@ -23,11 +23,11 @@ CLI that aggregates AI coding sessions across Claude Code, Cursor, Codex, and Gi
 
 `active` and `ps` disagree today: `ps` reads the `~/.claude/sessions/<PID>.json` registry (pid liveness, per-session status), while `active` uses transcript mtime + a global `pgrep` probe — weak heuristics that miscount, especially with an always-on agent fleet.
 
-- [ ] Investigate Claude Code session-registry internals (status semantics: busy/idle/waiting; registry GC behavior) — prerequisite noted on #74
-- [ ] Route claude `active` detection through the registry (share the `procsnap` correlation; one implementation of "active", not two)
-- [ ] Reuse the v0.9.0 codex lsof correlation for codex `active`
-- [ ] Fix doc drift: `ActiveThreshold` is 10m in code, glossary says 2m
-- [ ] Update TESTING.md §4.1 expectations for `active`
+- [x] Investigate Claude Code session-registry internals (status semantics: busy/idle/waiting; registry GC behavior) — findings in `openspec/changes/unify-active-definition/design.md` (status is an open enum — `shell` observed; registry well-GC'd)
+- [x] Route claude `active` detection through the registry (share the `procsnap` correlation; one implementation of "active", not two)
+- [x] Reuse the v0.9.0 codex lsof correlation for codex `active`
+- [x] Fix doc drift: `ActiveThreshold` is 10m in code, glossary says 2m
+- [x] Update TESTING.md §4.1 expectations for `active`
 
 One shared implementation of "active", not two. Unblocks downstream automation that consumes the active-session count.
 

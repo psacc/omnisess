@@ -716,6 +716,27 @@ func TestApplySnapshot_IgnoresCodexEntries(t *testing.T) {
 	}
 }
 
+func TestApplySnapshot_CorrelatesCodexEntries(t *testing.T) {
+	sessions := []model.Session{
+		{ID: "live-codex", Tool: model.ToolCodex, Active: false, UpdatedAt: time.Now()},
+		{ID: "gone-codex", Tool: model.ToolCodex, Active: true, Status: "stale", UpdatedAt: time.Now()},
+		{ID: "cursor-x", Tool: model.ToolCursor, Active: true, UpdatedAt: time.Now()},
+	}
+	snap := procsnap.Snapshot{
+		Sessions: []procsnap.Session{{Tool: procsnap.ToolCodex, SessionID: "live-codex"}},
+	}
+	got := ApplySnapshot(sessions, snap)
+	if !got[0].Active {
+		t.Error("lsof-correlated codex session must be active after refresh")
+	}
+	if got[1].Active || got[1].Status != "" {
+		t.Errorf("codex session absent from snapshot must be inactive with cleared status, got (%v, %q)", got[1].Active, got[1].Status)
+	}
+	if !got[2].Active {
+		t.Error("non-correlated tools (cursor) must keep their heuristic flags")
+	}
+}
+
 func TestApplySnapshot_EmptySnapshotZeroesClaude(t *testing.T) {
 	sessions := []model.Session{
 		{ID: "x", Tool: model.ToolClaude, Active: true, UpdatedAt: time.Now()},

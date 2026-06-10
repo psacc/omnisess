@@ -15,6 +15,7 @@ import (
 
 	"github.com/psacc/omnisess/internal/detect"
 	"github.com/psacc/omnisess/internal/model"
+	"github.com/psacc/omnisess/internal/procsnap"
 	"github.com/psacc/omnisess/internal/source"
 	"golang.org/x/sync/errgroup"
 )
@@ -36,6 +37,23 @@ const peekConcurrencyCap = 16
 // between developer macOS hosts and Linux CI runners, breaking the per-package
 // 100% coverage gate.
 var isToolRunning = detect.IsToolRunning
+
+// snapshotFn is the function used to obtain the shared live-process
+// snapshot (one memoized enumeration per CLI run). Overridable so tests can
+// inject fake snapshots — and the registry-vs-fallback branches — on any
+// platform.
+var snapshotFn = procsnap.Cached
+
+// liveSnapshot returns the shared process snapshot and whether it is usable.
+// Any error (including procsnap.ErrUnsupported on non-macOS) means callers
+// must use the mtime fallback heuristic instead.
+func liveSnapshot() (procsnap.Snapshot, bool) {
+	snap, err := snapshotFn()
+	if err != nil {
+		return procsnap.Snapshot{}, false
+	}
+	return snap, true
+}
 
 // peekConcurrency returns min(NumCPU, peekConcurrencyCap), clamped to at
 // least 1. The implementation is split into a pure clampConcurrency helper
@@ -244,6 +262,7 @@ type historyPeek struct {
 	sessionFilePath string
 	updatedAt       time.Time
 	active          bool
+	status          string
 	branch          string
 	model           string
 }
@@ -268,11 +287,15 @@ func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 		return nil, fmt.Errorf("list claude sessions: %w", err)
 	}
 
-	// Cache the "is claude running" probe once for the duration of this call.
-	// It is a constant for the loop in practice — the user either has the
-	// claude CLI running or doesn't — and saving N pgrep spawns is a chunky
-	// win on a multi-thousand-session corpus.
-	claudeRunning := isToolRunning("claude")
+	// One shared process snapshot per CLI run: a session is active iff the
+	// registry attributes a live PID to its exact session ID. The pgrep probe
+	// is only needed for the mtime fallback when the snapshot is unavailable
+	// (non-macOS or enumeration failure) — cached once per call either way.
+	snap, snapOK := liveSnapshot()
+	claudeRunning := false
+	if !snapOK {
+		claudeRunning = isToolRunning("claude")
+	}
 
 	// Track seen session IDs to avoid duplicates in the orphan scan.
 	seenIDs := make(map[string]bool, len(entries))
@@ -288,7 +311,7 @@ func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 		i := i
 		entry := entries[i]
 		g.Go(func() error {
-			peeks[i] = peekHistoryEntry(entry, claudeRunning)
+			peeks[i] = peekHistoryEntry(entry, claudeRunning, snap, snapOK)
 			return nil
 		})
 	}
@@ -329,6 +352,7 @@ func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 			StartedAt: entry.StartedAt,
 			UpdatedAt: p.updatedAt,
 			Active:    p.active,
+			Status:    p.status,
 			Preview:   preview,
 			Branch:    p.branch,
 			Model:     p.model,
@@ -340,7 +364,7 @@ func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 	// --- Pass 2: orphan session files on disk ---
 	// findOrphanSessions calls claudeDir() which already succeeded in loadHistory above,
 	// so its error is unreachable in practice — ignore it.
-	orphans, _ := findOrphanSessions(seenIDs, claudeRunning)
+	orphans, _ := findOrphanSessions(seenIDs, claudeRunning, snap, snapOK)
 
 	for _, orphan := range orphans {
 		updatedAt := orphan.UpdatedAt
@@ -370,6 +394,7 @@ func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 			StartedAt: orphan.UpdatedAt, // best we have
 			UpdatedAt: updatedAt,
 			Active:    orphan.Active,
+			Status:    orphan.Status,
 			Preview:   orphan.Preview,
 			Branch:    orphan.Branch,
 			Model:     orphan.Model,
@@ -400,7 +425,7 @@ func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 //
 // Safe to call from multiple goroutines: it touches only the local entry,
 // the global file system (read-only), and log.Printf (already safe).
-func peekHistoryEntry(entry sessionEntry, claudeRunning bool) historyPeek {
+func peekHistoryEntry(entry sessionEntry, claudeRunning bool, snap procsnap.Snapshot, snapOK bool) historyPeek {
 	out := historyPeek{updatedAt: entry.UpdatedAt}
 
 	// Find the session file.
@@ -426,10 +451,14 @@ func peekHistoryEntry(entry sessionEntry, claudeRunning bool) historyPeek {
 		}
 	}
 
-	// Check active status — short-circuits to false if claude is not
-	// running, avoiding the per-session pgrep spawn that the unconditional
-	// detect.IsSessionActive would do.
-	if claudeRunning {
+	// Active = the registry attributes a live PID to this session ID.
+	// Fallback (snapshot unavailable): claude running + transcript-tree
+	// mtime — claudeRunning is pre-cached so no per-session pgrep spawns.
+	if snapOK {
+		live, ok := snap.Lookup(entry.SessionID)
+		out.active = ok
+		out.status = live.Status
+	} else if claudeRunning {
 		out.active = detect.IsSessionTreeRecentlyModified(out.sessionFilePath, detect.ActiveThreshold)
 	}
 
@@ -450,6 +479,7 @@ type orphanSession struct {
 	Branch    string
 	Model     string
 	Active    bool
+	Status    string
 }
 
 // findOrphanSessions scans ~/.claude/projects/*/*.jsonl for session files
@@ -460,7 +490,7 @@ type orphanSession struct {
 // peek, active-status check) is fanned out under errgroup with
 // peekConcurrency() limit. claudeRunning is passed in pre-cached so we
 // don't spawn N pgrep subprocesses for the orphan pass.
-func findOrphanSessions(seenIDs map[string]bool, claudeRunning bool) ([]orphanSession, error) {
+func findOrphanSessions(seenIDs map[string]bool, claudeRunning bool, snap procsnap.Snapshot, snapOK bool) ([]orphanSession, error) {
 	dir, err := claudeDir()
 	if err != nil {
 		return nil, err
@@ -505,7 +535,7 @@ func findOrphanSessions(seenIDs map[string]bool, claudeRunning bool) ([]orphanSe
 		i := i
 		t := todos[i]
 		g.Go(func() error {
-			orphans[i] = peekOrphanFile(t.match, t.sessionID, t.project, claudeRunning)
+			orphans[i] = peekOrphanFile(t.match, t.sessionID, t.project, claudeRunning, snap, snapOK)
 			return nil
 		})
 	}
@@ -518,7 +548,7 @@ func findOrphanSessions(seenIDs map[string]bool, claudeRunning bool) ([]orphanSe
 // peekOrphanFile populates the orphanSession metadata for one file. Safe to
 // call concurrently — touches only its own return value, the filesystem
 // (read-only), and pgrep is never invoked since claudeRunning is pre-cached.
-func peekOrphanFile(match, sessionID, project string, claudeRunning bool) orphanSession {
+func peekOrphanFile(match, sessionID, project string, claudeRunning bool, snap procsnap.Snapshot, snapOK bool) orphanSession {
 	out := orphanSession{
 		SessionID: sessionID,
 		Project:   project,
@@ -529,7 +559,11 @@ func peekOrphanFile(match, sessionID, project string, claudeRunning bool) orphan
 	}
 	out.Branch, out.Model = peekSessionMetadata(match)
 	out.Preview = peekFirstUserMessage(match)
-	if claudeRunning {
+	if snapOK {
+		live, ok := snap.Lookup(sessionID)
+		out.Active = ok
+		out.Status = live.Status
+	} else if claudeRunning {
 		out.Active = detect.IsSessionTreeRecentlyModified(match, detect.ActiveThreshold)
 	}
 	return out
@@ -677,7 +711,7 @@ func (s *claudeSource) Get(sessionID string) (*model.Session, error) {
 		}
 	}
 
-	active := detect.IsSessionActive("claude", sessionFilePath)
+	active, status := activeStatus(fullID, sessionFilePath)
 
 	sess := &model.Session{
 		ID:        fullID,
@@ -689,11 +723,23 @@ func (s *claudeSource) Get(sessionID string) (*model.Session, error) {
 		StartedAt: startedAt,
 		UpdatedAt: updatedAt,
 		Active:    active,
+		Status:    status,
 		Messages:  messages,
 		Preview:   preview,
 	}
 
 	return sess, nil
+}
+
+// activeStatus resolves activeness for a single session outside the List
+// fan-out: registry-correlated when the shared snapshot is available, the
+// process+mtime heuristic otherwise.
+func activeStatus(sessionID, sessionFilePath string) (bool, string) {
+	if snap, ok := liveSnapshot(); ok {
+		live, found := snap.Lookup(sessionID)
+		return found, live.Status
+	}
+	return detect.IsSessionActive("claude", sessionFilePath), ""
 }
 
 // resolveSessionFile finds the session file, supporting prefix matching.

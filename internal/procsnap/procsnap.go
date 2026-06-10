@@ -7,6 +7,7 @@ package procsnap
 
 import (
 	"errors"
+	"sync"
 	"time"
 )
 
@@ -26,6 +27,7 @@ type Session struct {
 	PID        int
 	SessionID  string
 	Name       string // from /rename, empty if unset (claude only)
+	Status     string // claude registry status (open enum: busy/idle/waiting/shell/...); empty for codex
 	CWD        string
 	StartedAt  time.Time
 	Entrypoint string // claude: "cli" | "claude-desktop"; codex: originator, e.g. "codex-tui"
@@ -46,14 +48,49 @@ type Snapshot struct {
 	Built    time.Time
 }
 
-// IsActive reports whether the given session ID is backed by a live
-// process in this snapshot. Session IDs are UUIDs, so matches are
-// unambiguous across tools.
-func (s Snapshot) IsActive(sessionID string) bool {
+// Lookup returns the snapshot session with the given ID. Session IDs are
+// UUIDs, so matches are unambiguous across tools.
+func (s Snapshot) Lookup(sessionID string) (Session, bool) {
 	for i := range s.Sessions {
 		if s.Sessions[i].SessionID == sessionID {
-			return true
+			return s.Sessions[i], true
 		}
 	}
-	return false
+	return Session{}, false
+}
+
+// IsActive reports whether the given session ID is backed by a live
+// process in this snapshot.
+func (s Snapshot) IsActive(sessionID string) bool {
+	_, ok := s.Lookup(sessionID)
+	return ok
+}
+
+var (
+	cacheOnce sync.Once
+	cacheSnap Snapshot
+	cacheErr  error
+)
+
+// enumerateFn is the function Cached memoizes. Overridable in tests so the
+// once-semantics are verifiable on every platform without touching the real
+// process table or filesystem.
+var enumerateFn = Enumerate
+
+// Cached returns a process-lifetime memoized Enumerate result (snapshot and
+// error alike). One CLI invocation enumerates processes at most once, so
+// every active-aware path (active, list, ps, digest) sees the same snapshot
+// and cannot disagree within a run. The TUI keeps calling Enumerate directly
+// for its explicit refresh.
+func Cached() (Snapshot, error) {
+	cacheOnce.Do(func() { cacheSnap, cacheErr = enumerateFn() })
+	return cacheSnap, cacheErr
+}
+
+// resetCache clears the Cached memo so tests can exercise the once-path
+// against different injected enumerations.
+func resetCache() {
+	cacheOnce = sync.Once{}
+	cacheSnap = Snapshot{}
+	cacheErr = nil
 }

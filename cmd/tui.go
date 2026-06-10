@@ -37,7 +37,7 @@ var (
 		return tea.NewProgram(m, opts...).Run()
 	}
 	execInAoE         = resume.ExecInAoE
-	enumerateProcsnap = procsnap.Enumerate
+	enumerateProcsnap = procsnap.Cached
 )
 
 var tuiCmd = &cobra.Command{
@@ -106,11 +106,12 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Enrich Claude Active flags from the live process snapshot. On
-	// unsupported platforms or snapshot errors we keep the existing
-	// (mtime-based) flags. snapOK controls whether we also attach the
-	// snapshot to the TUI model for the lineage overlay (Task C3) and
-	// the refresh tick (Task C4).
+	// Enrich claude/codex Active flags from the shared live-process
+	// snapshot (the sources already snapshot-routed them at List time —
+	// the memoized Cached() means this re-uses the same enumeration). On
+	// unsupported platforms or snapshot errors the flags from List stand.
+	// snapOK controls whether we also attach the snapshot to the TUI model
+	// for the lineage overlay (Task C3) and the refresh tick (Task C4).
 	var (
 		snap   procsnap.Snapshot
 		snapOK bool

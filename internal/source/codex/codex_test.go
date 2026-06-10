@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/psacc/omnisess/internal/model"
+	"github.com/psacc/omnisess/internal/procsnap"
 	"github.com/psacc/omnisess/internal/source"
 )
 
@@ -986,5 +987,88 @@ func TestSearch_ProjectFilterSkips(t *testing.T) {
 	}
 	if len(results) != 0 {
 		t.Errorf("Search() with non-matching project filter: got %d results, want 0", len(results))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// snapshotFn seam: unified "active" definition (#74). TestMain pins the seam
+// to "snapshot unavailable" so pre-existing tests deterministically exercise
+// the mtime fallback; the tests below inject fake snapshots for the lsof-
+// correlated path.
+// ---------------------------------------------------------------------------
+
+func TestMain(m *testing.M) {
+	snapshotFn = func() (procsnap.Snapshot, error) {
+		return procsnap.Snapshot{}, procsnap.ErrUnsupported
+	}
+	os.Exit(m.Run())
+}
+
+// withSnapshot swaps the package-level snapshot seam for the duration of a
+// test. Restores the TestMain default on cleanup.
+func withSnapshot(t *testing.T, snap procsnap.Snapshot, err error) {
+	t.Helper()
+	orig := snapshotFn
+	snapshotFn = func() (procsnap.Snapshot, error) { return snap, err }
+	t.Cleanup(func() { snapshotFn = orig })
+}
+
+// TestList_SnapshotRoutesActive covers the lsof-correlated arm: a codex
+// session whose rollout file is held by a live process is active even with
+// an ancient transcript mtime. Codex carries no registry status.
+func TestList_SnapshotRoutesActive(t *testing.T) {
+	home, sessPath := setupFakeHome(t)
+	t.Setenv("HOME", home)
+
+	// Ancient mtime: under the fallback heuristic this session would never
+	// be active. The snapshot must win.
+	oldTime := time.Now().Add(-365 * 24 * time.Hour)
+	if err := os.Chtimes(sessPath, oldTime, oldTime); err != nil {
+		t.Fatal(err)
+	}
+	withSnapshot(t, procsnap.Snapshot{Sessions: []procsnap.Session{
+		{Tool: procsnap.ToolCodex, SessionID: fixtureSessionID, PID: 99},
+	}}, nil)
+
+	s := &codexSource{}
+	sessions, err := s.List(source.ListOptions{Active: true})
+	if err != nil {
+		t.Fatalf("List() error: %v", err)
+	}
+	if len(sessions) != 1 {
+		t.Fatalf("expected exactly the lsof-correlated session, got %d", len(sessions))
+	}
+	if !sessions[0].Active || sessions[0].Status != "" {
+		t.Errorf("session = (active=%v, status=%q), want (true, \"\")", sessions[0].Active, sessions[0].Status)
+	}
+}
+
+// TestActiveStatus_NoSessionFile covers the guard arm: snapshot unavailable
+// and no transcript on disk means inactive without spawning the heuristic.
+func TestActiveStatus_NoSessionFile(t *testing.T) {
+	active, status := activeStatus("deadbeef-0000-0000-0000-000000000000", "")
+	if active || status != "" {
+		t.Errorf("activeStatus(no file) = (%v, %q), want (false, \"\")", active, status)
+	}
+}
+
+// TestGet_SnapshotRoutesActive covers the snapshot arm on the Get path.
+func TestGet_SnapshotRoutesActive(t *testing.T) {
+	home, _ := setupFakeHome(t)
+	t.Setenv("HOME", home)
+	withSnapshot(t, procsnap.Snapshot{Sessions: []procsnap.Session{
+		{Tool: procsnap.ToolCodex, SessionID: fixtureSessionID, PID: 99},
+	}}, nil)
+
+	s := &codexSource{}
+	sess, err := s.Get(fixtureSessionID)
+	if err != nil {
+		t.Fatalf("Get() error: %v", err)
+	}
+	if sess == nil {
+		t.Fatal("expected session")
+	}
+	if !sess.Active {
+		t.Error("lsof-correlated session must be active on Get")
 	}
 }
