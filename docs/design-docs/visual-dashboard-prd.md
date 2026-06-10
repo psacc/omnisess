@@ -407,7 +407,7 @@ As an engineer evaluating the tool or working in an air-gapped environment, I wa
 │ │[P] claude │my-project  2d │ claude:5c3f2742                    │ Full conversation      │
 │ ─ ACTIVE (Today) ──────── │                                     │ messages rendered      │
 │ │●  claude │sessions   12m │ Refactor the source interface to... │ here with role labels. │
-│ │   cursor │my-app   1h │                                     │                        │
+│ │   cursor │my-app       1h │                                     │                        │
 │ ─ ARCHIVED ────────────── │                                     │                        │
 │ │   codex  │some-proj   3d │                                     │                        │
 └─────────────────────────────┴─────────────────────────────────────┴────────────────────────┘

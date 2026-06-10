@@ -4,7 +4,6 @@ Current phase: Active-definition unification (#74) — route `active` through th
 Blocks: downstream automation that consumes the active-session count; worktree-aware session listing (Phase 2.5)
 Blocked by: nothing
 Last updated: 2026-06-10
-(strategic context tracked privately)
 
 ---
 
@@ -58,5 +57,5 @@ Informs resume/kill semantics for scheduled agents and worktree-aware session li
 
 - [ ] Gemini source: drop the stub or replace with Antigravity CLI support
 - [ ] `recap` consuming `digest` output as a richer LLM source than list previews
-- [ ] Compare varda (Rust task-routing CLI) vs omnisess/obi fit
+- [ ] Compare varda (Rust task-routing CLI) for overlap and fit
 - [ ] Copilot digest noise: strip verbose VS Code `command:…openSymbolFromReferences` URLs (no issue filed yet)

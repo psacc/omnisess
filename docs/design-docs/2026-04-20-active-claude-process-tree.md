@@ -126,7 +126,7 @@ launchd
 │  └─ zsh
 │     └─ claude  omnisess  (c183a0f2)  cli      2m
 └─ Claude.app
-   ├─ claude  my-app          (84db8f3f)  desktop  5m
+   ├─ claude  my-app         (84db8f3f)  desktop  5m
    └─ claude  myapp (eaa9deaf)  desktop  3m
 ```
 

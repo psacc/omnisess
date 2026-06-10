@@ -49,9 +49,9 @@ func encodePath(p string) string {
 // At each directory level, it tries to match the longest possible directory name
 // from the remaining encoded string.
 //
-// For "prj-finn-my-app", starting at /Users/example:
+// For "prj-team-my-app", starting at /Users/example:
 // 1. List children of /Users/example → find "prj" matches prefix
-// 2. List children of /Users/example/prj → find "finn" matches
+// 2. List children of /Users/example/prj → find "team" matches
 // 3. List children of .../prj/team → find "my-app" matches (longest)
 func resolvePathGreedy(base string, encoded string) string {
 	if encoded == "" {
@@ -91,7 +91,7 @@ func resolvePathGreedy(base string, encoded string) string {
 	}
 
 	// Sort by match length descending (longest encoded match first).
-	// This ensures "my-app" matches before "b2b".
+	// This ensures "my-app-api" matches before "my-app".
 	for i := 0; i < len(matches); i++ {
 		for j := i + 1; j < len(matches); j++ {
 			if len(matches[j].remaining) < len(matches[i].remaining) {

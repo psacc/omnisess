@@ -10,7 +10,7 @@
 ## Workspace ID Mapping
 
 Workspace ID = MD5 hash of absolute project path:
-`MD5("/Users/example/prj/my-app")` = `6a4ed208d874bc31c17fb549de8edded`
+`MD5("/Users/example/prj/my-app")` = `265a92303ddadd3b81c3eb69eee34ac8`
 
 ## Project Name Encoding (in projects/ dir)
 

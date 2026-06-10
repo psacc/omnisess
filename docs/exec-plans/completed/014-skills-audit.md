@@ -2309,7 +2309,7 @@ func parseWindow(s string) (time.Duration, error) {
 
 ```bash
 go build -o omnisess .
-./omnisess skills audit --root ~/prj --root ~/prj/team -o /tmp/audit.md
+./omnisess skills audit --root ~/prj -o /tmp/audit.md
 head -60 /tmp/audit.md
 ```
 
@@ -2424,7 +2424,7 @@ Prompt:
 > You are reviewing the markdown audit report produced by `omnisess skills audit` on branch `feature/skills-audit-v0`. Your job: spot anything that smells wrong before merge.
 >
 > Steps:
-> 1. Build and run: `go build -o /tmp/omnisess . && /tmp/omnisess skills audit --root ~/prj --root ~/prj/team -o /tmp/audit.md`
+> 1. Build and run: `go build -o /tmp/omnisess . && /tmp/omnisess skills audit --root ~/prj -o /tmp/audit.md`
 > 2. Read `/tmp/audit.md` end-to-end.
 > 3. Check the following:
 >    - **Heavily-used skills should be in Keep, not Archive.** Cross-reference against `~/.claude/projects/` JSONL: any skill the user invokes weekly should not land in Archive. Flag if you see one.
@@ -2493,7 +2493,7 @@ Adds `omnisess skills audit` — read-only classification of agent skills by obs
 ## Test plan
 
 - [x] Unit tests across all subpackages (`make check`)
-- [x] Smoke test on `~/prj` and `~/prj/team`
+- [x] Smoke test on local workspace roots
 - [x] Subagent A: parser ground-truth verified against grep
 - [x] Subagent B: report sanity-checked against expected usage patterns
 - [x] Subagent C: user-facing doc reviewed
@@ -2511,7 +2511,7 @@ EOF
 
 - [ ] **Step 3: Wait for human review and merge**
 
-Per `workspace policy`: git push to public repos is visible to others — DO NOT auto-merge. Wait for explicit user approval.
+Per workspace policy: git push to public repos is visible to others — DO NOT auto-merge. Wait for explicit user approval.
 
 ---
 
