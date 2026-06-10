@@ -19,6 +19,7 @@ Direct push to `main` is **blocked by GitHub branch protection**. All changes MU
 Branch protection settings applied:
 - Squash-only merges (no merge commits, no rebase)
 - Linear history required
+- Required status checks: `check` **and** `cover-check` — both CI jobs must be green to merge
 - Auto-delete branch on merge
 - `enforce_admins: false` (solo project — tighten via `--force` if collaborators join)
 
@@ -88,8 +89,9 @@ Decision (agent-decided): <what and why>
 5. Commit    git add <files> && git commit (conventional message)
 6. Review    Spawn a reviewer subagent against the branch diff
 7. Address   Fix all findings from review (amend or new commit)
-8. Classify  Two-way door → self-merge. One-way door → push, escalate.
-9. Merge     make merge (squash-merges branch into main, keeps linear history)
+8. PR        Push the branch, open a PR composed from the template
+9. Approval  Wait for the owner's explicit go on the PR — always (see §3)
+10. Merge    gh pr merge --squash, only after approval (linear history kept)
 ```
 
 Steps 2-5 may repeat within a branch. Steps 6-7 may repeat if the reviewer finds new issues after fixes. Each commit should be a coherent, reviewable unit.
@@ -107,9 +109,10 @@ The implementing agent:
 1. Completes the fix/feature on a branch
 2. Spawns a reviewer subagent against the branch diff
 3. Addresses all findings from the review (amend or new commit)
-4. Proceeds to merge per the rules below
+4. Opens the PR and requests the owner's go per §3
 
-Human review is only required for one-way door escalations (see below).
+Subagent review complements — never replaces — the owner's per-PR approval.
+One-way door changes additionally get the escalation treatment below.
 
 ### PR body requirements
 
@@ -140,9 +143,9 @@ EOF
 
 Do not use `gh pr create --fill`; it bypasses the template.
 
-### Two-way door changes (agent self-merges after subagent review)
+### Two-way door changes
 
-ALL of these must be true:
+ALL of these must be true before requesting the owner's go:
 
 - Classified as two-way door per `agent-review.md` Section 1
 - **Subagent review completed** and all findings addressed
@@ -151,9 +154,11 @@ ALL of these must be true:
 - Exec plan status updated (moved to `completed/` if done)
 - No new external dependencies added
 
-If all conditions hold, the agent runs `make merge` (squash-merge into main) and verifies. Do not ask a human.
+If all conditions hold, the agent opens the PR and asks the owner for an
+explicit go (§3). Only after approval does the agent merge
+(`gh pr merge --squash`) and verify.
 
-### One-way door changes (escalate to human)
+### One-way door changes (escalate with full context)
 
 ANY of these triggers escalation:
 
@@ -162,16 +167,19 @@ ANY of these triggers escalation:
 - Changes to public interfaces (`Source`, `model.*` types, CLI flags)
 - Change affects 3+ packages
 
-The agent pushes the branch but does NOT merge. Leave a summary using the escalation format from `agent-review.md` Section 4.
+The agent pushes the branch and opens the PR, but additionally leaves a
+summary using the escalation format from `agent-review.md` Section 4 so the
+owner can judge the lock-in before approving.
 
 ### Uncertain
 
-If classification is unclear, request a reviewer subagent per `agent-review.md` Section 2. Do not merge until resolved.
+If classification is unclear, request a reviewer subagent per `agent-review.md` Section 2. Either way, the owner's per-PR go is still required before merge.
 
 ## 7. Pre-Merge Checklist
 
 Before any merge to `main`, verify every item:
 
+- [ ] Owner's explicit go received on the PR (§3 — always, no exceptions)
 - [ ] `make check` clean (fmt + vet + lint + test, zero failures)
 - [ ] `make smoke` passed (binary in PATH, `omnisess list --limit=1` exits 0)
 - [ ] Exec plan: status updated (`active/` -> `completed/` if finished)

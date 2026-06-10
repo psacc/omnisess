@@ -81,7 +81,7 @@ For branch naming, commit conventions, merge rules, and the pre-merge checklist,
 
 Key integration points:
 
-- **Review is subagent-driven**: Every branch must be reviewed by a reviewer subagent before merge. Human review is only for one-way door escalations. See `git-workflow.md` Section 5.
-- **Two-way door changes**: after subagent review passes, agent self-merges. Do not ask a human.
-- **One-way door changes**: agent pushes the branch but does NOT merge. Use the escalation format from Section 4 above.
+- **Review is subagent-driven**: Every branch must be reviewed by a reviewer subagent before the PR is put up for approval. See `git-workflow.md` Section 5.
+- **Every merge needs the owner's go**: subagent review never substitutes for the owner's explicit per-PR approval (`git-workflow.md` Section 3). Agents never self-merge.
+- **One-way door changes**: additionally escalate with the format from Section 4 above so the owner can judge lock-in before approving.
 - **Commit messages**: agent-decided changes must include `Decision (agent-decided): <what and why>` in the commit body.
