@@ -115,7 +115,7 @@ func runStatsWindow(w, wErr io.Writer, idx index.Index) error {
 	}
 	// Validate --tool BEFORE the lazy-index pass so an unknown value
 	// fails fast without doing useless work. Only 'claude' is supported
-	// in PR1; cursor/codex/copilot/gemini land in PR2.
+	// in PR1; cursor/codex/copilot land in PR2.
 	provider := ""
 	switch flagStatsTool {
 	case "":

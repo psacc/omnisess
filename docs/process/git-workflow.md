@@ -7,7 +7,7 @@ Branch, commit, review, and merge rules for agents working in this repository.
 | Prefix | Use when | Example |
 |--------|----------|---------|
 | `fix/<slug>` | Bug fix | `fix/active-detection` |
-| `feat/<slug>` | New feature or capability | `feat/gemini-source` |
+| `feat/<slug>` | New feature or capability | `feat/copilot-source` |
 | `chore/<slug>` | Non-functional: refactors, tooling, CI | `chore/lint-config` |
 
 Slugs are lowercase, hyphen-separated, and short (2-4 words max).

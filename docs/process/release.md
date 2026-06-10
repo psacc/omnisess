@@ -6,7 +6,7 @@ How to cut a versioned omnisess release.
 
 Cut a release when `main` contains a coherent, user-visible improvement:
 
-- A new source is promoted from stub to working (e.g., Codex, Gemini)
+- A new source is promoted from stub to working (e.g., Codex)
 - A new CLI command or flag reaches stable behavior
 - A bug fix that meaningfully improves reliability for existing users
 - The plugin or module interface changes in a way users should pin against

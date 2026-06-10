@@ -35,7 +35,7 @@ cover: ## Run tests with per-function coverage report
 
 cover-check: ## Enforce 100% per-package statement coverage (skips integration tests)
 	go test -short -coverprofile=coverage.out ./...
-	go run ./tools/covercheck -threshold 100 -exempt "gemini,github.com/psacc/omnisess,tools/covercheck" coverage.out
+	go run ./tools/covercheck -threshold 100 -exempt "github.com/psacc/omnisess,tools/covercheck" coverage.out
 
 cover-pkg: ## Fast per-package coverage (usage: make cover-pkg PKG=./cmd/...)
 	## Example: make cover-pkg PKG=./internal/source/cursor/...

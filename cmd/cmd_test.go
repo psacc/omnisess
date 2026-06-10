@@ -549,12 +549,6 @@ func TestParseQualifiedID(t *testing.T) {
 			wantID:   "ghi789",
 		},
 		{
-			name:     "gemini",
-			input:    "gemini:jkl012",
-			wantTool: model.ToolGemini,
-			wantID:   "jkl012",
-		},
-		{
 			name:     "copilot",
 			input:    "copilot:mno345",
 			wantTool: model.ToolCopilot,
@@ -905,11 +899,11 @@ func TestSearchCmd_EmptyQuery_E2E(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // TestRunShow_NotFound_Stub covers the source-lookup and Get/nil branches of
-// runShow using the gemini stub, which returns nil, nil from Get() instantly
-// with no disk access.
+// runShow using the activeSource mock, which returns nil, nil from Get()
+// instantly with no disk access.
 func TestRunShow_NotFound_Stub(t *testing.T) {
 	resetFlags()
-	err := runShow(newNoopCmd(), []string{"gemini:any-session-id"})
+	err := runShow(newNoopCmd(), []string{string(activeSourceName) + ":any-session-id"})
 	if err == nil {
 		t.Error("expected 'session not found' error, got nil")
 	}

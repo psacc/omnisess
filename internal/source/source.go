@@ -46,7 +46,7 @@ func MatchesDate(ts, onDate time.Time) bool {
 // Source is the interface that each tool's session parser implements.
 // See AGENTS.md for the full contract.
 type Source interface {
-	// Name returns the tool identifier ("claude", "cursor", "codex", "gemini").
+	// Name returns the tool identifier ("claude", "cursor", "codex", "copilot").
 	Name() model.Tool
 
 	// List returns sessions ordered by most recent first.

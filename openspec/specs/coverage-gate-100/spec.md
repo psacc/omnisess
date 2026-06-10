@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: cover-check enforces 100% per-package statement coverage
-The `make cover-check` target SHALL run `go test -short -coverprofile=coverage.out ./...` followed by `go run ./tools/covercheck` with `-threshold 100`. The threshold SHALL be exactly 100 (not 80 or any other value). The following packages SHALL be exempt: the root package (`github.com/psacc/omnisess`), `gemini`, and `tools/covercheck`. All other packages SHALL meet the 100% threshold or the target SHALL exit non-zero.
+The `make cover-check` target SHALL run `go test -short -coverprofile=coverage.out ./...` followed by `go run ./tools/covercheck` with `-threshold 100`. The threshold SHALL be exactly 100 (not 80 or any other value). The following packages SHALL be exempt: the root package (`github.com/psacc/omnisess`) and `tools/covercheck`. All other packages SHALL meet the 100% threshold or the target SHALL exit non-zero.
 
 #### Scenario: cover-check passes when all packages are at 100%
 - **WHEN** `make cover-check` is run and every non-exempt package has 100% statement coverage
@@ -13,7 +13,7 @@ The `make cover-check` target SHALL run `go test -short -coverprofile=coverage.o
 
 #### Scenario: exempt packages are not checked
 - **WHEN** `make cover-check` is run
-- **THEN** `github.com/psacc/omnisess` (root), `internal/source/gemini`, and `tools/covercheck` are not reported and do not cause failure
+- **THEN** `github.com/psacc/omnisess` (root) and `tools/covercheck` are not reported and do not cause failure
 
 ---
 
