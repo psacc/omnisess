@@ -106,6 +106,11 @@ func (m Model) Quitting() bool {
 func ApplySnapshot(sessions []model.Session, snap procsnap.Snapshot) []model.Session {
 	bySessionID := make(map[string]procsnap.Session, len(snap.Sessions))
 	for _, s := range snap.Sessions {
+		// The snapshot may carry non-claude sessions (e.g. codex); this
+		// function's contract is claude-only, so they are excluded here.
+		if s.Tool != procsnap.ToolClaude {
+			continue
+		}
 		bySessionID[s.SessionID] = s
 	}
 	for i := range sessions {

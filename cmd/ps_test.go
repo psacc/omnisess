@@ -45,7 +45,7 @@ func TestRunPS_EmptySessions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !bytes.Contains(buf.Bytes(), []byte("No live Claude sessions.")) {
+	if !bytes.Contains(buf.Bytes(), []byte("No live sessions.")) {
 		t.Errorf("expected empty-sessions notice, got %q", buf.String())
 	}
 }
@@ -87,7 +87,10 @@ func TestRunPS_JSONWithSessions(t *testing.T) {
 	var buf bytes.Buffer
 	err := runPSWith(&buf, func() (procsnap.Snapshot, error) {
 		return procsnap.Snapshot{
-			Sessions: []procsnap.Session{{PID: 42, SessionID: "xyz"}},
+			Sessions: []procsnap.Session{
+				{Tool: procsnap.ToolClaude, PID: 42, SessionID: "xyz"},
+				{Tool: procsnap.ToolCodex, PID: 43, SessionID: "abc"},
+			},
 		}, nil
 	}, true)
 	if err != nil {
@@ -97,8 +100,11 @@ func TestRunPS_JSONWithSessions(t *testing.T) {
 	if jerr := json.Unmarshal(buf.Bytes(), &decoded); jerr != nil {
 		t.Fatalf("expected valid JSON, got %q (err %v)", buf.String(), jerr)
 	}
-	if len(decoded.Sessions) != 1 || decoded.Sessions[0].PID != 42 {
+	if len(decoded.Sessions) != 2 || decoded.Sessions[0].PID != 42 {
 		t.Errorf("roundtripped snapshot mismatch: %+v", decoded)
+	}
+	if decoded.Sessions[0].Tool != procsnap.ToolClaude || decoded.Sessions[1].Tool != procsnap.ToolCodex {
+		t.Errorf("JSON output must carry the Tool field for every session: %+v", decoded.Sessions)
 	}
 }
 
@@ -106,6 +112,11 @@ func TestRunPS_JSONWithSessions(t *testing.T) {
 // closure itself (and not just runPSWith) is covered. On darwin Enumerate
 // may succeed with zero or more sessions; on other platforms it returns
 // ErrUnsupported. Both paths are handled without error.
+//
+// NOTE: this runs the real Enumerate — on a host with live claude/codex
+// processes it touches the real registry, lsof, and rollout first lines.
+// It asserts no-error only, so it passes regardless of what is running;
+// kept real intentionally as a thin end-to-end probe of the closure.
 func TestPSCmd_RunE(t *testing.T) {
 	silenceOutput(t)
 	resetFlags()
@@ -289,23 +300,47 @@ func TestLeafLabel(t *testing.T) {
 		{
 			name: "named-cli",
 			session: procsnap.Session{
+				Tool:       procsnap.ToolClaude,
 				SessionID:  "abcdef1234",
 				Name:       "refactor auth",
 				CWD:        "/Users/me/prj/foo",
 				StartedAt:  now.Add(-30 * time.Second),
 				Entrypoint: "cli",
 			},
-			want: []string{"refactor auth", "foo", "abcdef12", "cli", "30s"},
+			want: []string{"claude", "refactor auth", "foo", "abcdef12", "cli", "30s"},
 		},
 		{
 			name: "unnamed-desktop",
 			session: procsnap.Session{
+				Tool:       procsnap.ToolClaude,
 				SessionID:  "xyz99999000",
 				CWD:        "/Users/me/prj/bar",
 				StartedAt:  now.Add(-2 * time.Hour),
 				Entrypoint: "claude-desktop",
 			},
-			want: []string{"xyz99999", "bar", "desktop", "2h"},
+			want: []string{"claude", "xyz99999", "bar", "desktop", "2h"},
+		},
+		{
+			name: "codex-fallback-no-meta",
+			session: procsnap.Session{
+				Tool:      procsnap.ToolCodex,
+				SessionID: "019e0000-bbbb-7000-8000-000000000000",
+				CWD:       "/Users/me/prj/qux",
+				// Zero StartedAt and empty Entrypoint: the degraded codex
+				// row when neither meta nor filename had usable values.
+			},
+			want: []string{"codex", "019e0000", "qux", "-", "?"},
+		},
+		{
+			name: "codex-tui",
+			session: procsnap.Session{
+				Tool:       procsnap.ToolCodex,
+				SessionID:  "019e0000-aaaa-7000-8000-000000000000",
+				CWD:        "/Users/me/prj/baz",
+				StartedAt:  now.Add(-3 * time.Minute),
+				Entrypoint: "codex-tui",
+			},
+			want: []string{"codex", "019e0000", "baz", "codex-tui", "3m"},
 		},
 	}
 	for _, tc := range cases {
@@ -358,7 +393,8 @@ func TestRenderTree_LastChildOfRootKeepsConnector(t *testing.T) {
 		Sessions: []procsnap.Session{
 			// One claude under iTerm2 → launchd.
 			{
-				PID: 100, SessionID: "aaaaaaaa", Name: "sess-a",
+				Tool: procsnap.ToolClaude,
+				PID:  100, SessionID: "aaaaaaaa", Name: "sess-a",
 				CWD: "/x/a", StartedAt: time.Now().Add(-1 * time.Minute), Entrypoint: "cli",
 				Ancestors: []procsnap.Ancestor{
 					{PID: 50, Command: "iTerm2"},
@@ -368,7 +404,8 @@ func TestRenderTree_LastChildOfRootKeepsConnector(t *testing.T) {
 			// One claude under tmux → launchd. tmux sorts AFTER iTerm2,
 			// so it is the LAST child of launchd — the bug trigger.
 			{
-				PID: 101, SessionID: "bbbbbbbb", Name: "sess-b",
+				Tool: procsnap.ToolClaude,
+				PID:  101, SessionID: "bbbbbbbb", Name: "sess-b",
 				CWD: "/x/b", StartedAt: time.Now().Add(-1 * time.Minute), Entrypoint: "cli",
 				Ancestors: []procsnap.Ancestor{
 					{PID: 60, Command: "tmux"},

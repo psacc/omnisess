@@ -17,8 +17,8 @@ import (
 
 var psCmd = &cobra.Command{
 	Use:   "ps",
-	Short: "Show active Claude sessions as a process tree",
-	Long:  "List live Claude Code sessions (CLI + Claude Desktop agent mode), grouped by shared ancestor chain up to launchd.",
+	Short: "Show active Claude and Codex sessions as a process tree",
+	Long:  "List live Claude Code sessions (CLI + Claude Desktop agent mode) and Codex sessions (CLI + Codex.app), grouped by shared ancestor chain up to launchd.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runPSWith(os.Stdout, procsnap.Enumerate, flagJSON)
 	},
@@ -48,7 +48,7 @@ func runPSWith(out io.Writer, enum enumerator, asJSON bool) error {
 	}
 
 	if len(snap.Sessions) == 0 {
-		fmt.Fprintln(out, "No live Claude sessions.")
+		fmt.Fprintln(out, "No live sessions.")
 		return nil
 	}
 	renderTree(out, snap)
@@ -110,13 +110,21 @@ func leafLabel(s procsnap.Session, now time.Time) string {
 		name = shortID(s.SessionID)
 	}
 	project := projectBase(s.CWD)
-	age := formatAge(now.Sub(s.StartedAt))
+	// A zero start time (codex fallback rows with no parseable timestamp)
+	// would render an absurd age; show "?" instead.
+	age := "?"
+	if !s.StartedAt.IsZero() {
+		age = formatAge(now.Sub(s.StartedAt))
+	}
 	entry := s.Entrypoint
 	if entry == "claude-desktop" {
 		entry = "desktop"
 	}
-	return fmt.Sprintf("claude  %s  %s (%s)  %s  %s",
-		name, project, shortID(s.SessionID), entry, age)
+	if entry == "" {
+		entry = "-"
+	}
+	return fmt.Sprintf("%s  %s  %s (%s)  %s  %s",
+		s.Tool, name, project, shortID(s.SessionID), entry, age)
 }
 
 func shortID(id string) string {

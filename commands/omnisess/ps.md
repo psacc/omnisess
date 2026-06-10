@@ -1,5 +1,5 @@
 ---
-description: Show active Claude Code sessions as a process tree, grouped by shared ancestor chain up to launchd. macOS-only.
+description: Show active Claude Code and Codex sessions as a process tree, grouped by shared ancestor chain up to launchd. macOS-only.
 argument-hint: "(none)"
 allowed-tools: Bash
 ---
