@@ -37,8 +37,8 @@ coupling to the existing `Source` interface.
 | Factory.ai (Droid) | `SKILL.md` + frontmatter | OpenTelemetry export — closest peer, compliance-shaped. |
 | Antigravity (Gemini) | `SKILL.md` + frontmatter | None. |
 
-omnisess fills a real, multi-vendor gap. v0 targets Claude Code only; Codex,
-Cursor, and Gemini are v0.5 follow-ups.
+omnisess fills a real, multi-vendor gap. v0 targets Claude Code only; Codex
+and Cursor are v0.5 follow-ups.
 
 ---
 
@@ -83,7 +83,7 @@ model-invoked and user-invoked counts contribute to the total.
 | **Keep** | `total_90d >= 3` OR skill name is in the allowlist |
 | **Borderline** | `total_90d` is 1 or 2 (used, but rarely) |
 | **Archive** | `total_90d == 0` AND not allowlisted (candidate for removal) |
-| **Unknown** | Skill discovered in a non-Claude source (Codex, Cursor, Gemini); telemetry not parsed in v0 |
+| **Unknown** | Skill discovered in a non-Claude source (Codex, Cursor); telemetry not parsed in v0 |
 
 Cost (description token count) is shown as informational only — it is not a tier
 driver. A large-description skill with 0 invocations is Archive; a tiny skill used
@@ -149,7 +149,7 @@ to remove a skill.
 - **Collision reporting** — when the same skill name is discovered in multiple locations (e.g., both global and project), report the collision in `AuditResult` rather than silently deduplicating. The dedup rule (project beats global) is already implemented in the walker; surfacing the list is deferred to v0.5+.
 - **Codex parser** — scan `~/.codex/sessions/**/*.jsonl` once the omnisess Codex
   `Source` lands; promote Codex-discovered skills from Unknown to a real tier
-- **Cursor / Gemini parsers** — same; depends on those Sources shipping
+- **Cursor parser** — same; depends on that Source shipping
 - **Scheduled runs** — integrate with omnisess cron/recap loop for weekly drift reports
 - **Allowlist patterns / YAML** — glob patterns (`gws-*: keep`) and YAML format for
   richer annotations (owner, last-reviewed date, reason)
