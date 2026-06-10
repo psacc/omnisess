@@ -11,7 +11,7 @@
 ## history.jsonl Format
 
 ```json
-{"session_id":"019c41d9-...","ts":1739091671,"text":"compare AGENTS.md with..."}
+{"session_id":"01900000-...","ts":1700000000,"text":"user prompt text"}
 ```
 
 - `ts`: Unix epoch seconds
@@ -23,7 +23,7 @@
 First line is session metadata (can run tens of KB — the payload embeds the
 full base instructions). Fields used by `omnisess ps`:
 ```json
-{"timestamp":"2026-02-09T10:01:11.966Z","type":"session_meta","payload":{"id":"019c41d9-...","timestamp":"2026-02-09T10:01:11.156Z","cwd":"/Users/example/prj/myapp","originator":"codex-tui","cli_version":"0.138.0"}}
+{"timestamp":"2026-01-01T10:00:00.000Z","type":"session_meta","payload":{"id":"01900000-0000-7000-8000-000000000000","timestamp":"2026-01-01T10:00:00.000Z","cwd":"/Users/example/prj/myapp","originator":"codex-tui","cli_version":"0.138.0"}}
 ```
 
 The filename encodes the same session id plus the start time in **local**
@@ -32,7 +32,7 @@ is UTC.
 
 Subsequent lines are response items:
 ```json
-{"timestamp":"2026-02-09T10:01:11.966Z","type":"response_item","payload":{"type":"message","role":"developer","content":[{"type":"input_text","text":"user prompt"}]}}
+{"timestamp":"2026-01-01T10:00:01.000Z","type":"response_item","payload":{"type":"message","role":"developer","content":[{"type":"input_text","text":"user prompt"}]}}
 ```
 
 ## CLI Support
@@ -54,11 +54,13 @@ rollout JSONL open for writing for the session's lifetime.**
 1. Candidate PIDs = processes in the `ps` snapshot whose executable basename
    is `codex` — matches the CLI TUI (`comm` = `codex`) and Codex.app's
    app-server (`comm` = full bundle path ending in `/codex`).
-2. One `lsof -a -p <pid,...> -F pfn` call maps each PID to its cwd and any
+2. One `lsof -n -P -a -p <pid,...> -F pfn` call maps each PID to its cwd and any
    open `.jsonl` files under `~/.codex/sessions/`.
 3. Each held rollout = one live session. The `session_meta` first line
    supplies id/cwd/version/originator/start; the filename is the fallback
-   for id/start, lsof cwd for cwd.
+   for id/start, lsof cwd for cwd. A held `.jsonl` is skipped (with a
+   stderr warning) only when both the meta parse and the filename parse
+   fail — either alone is enough to identify a session.
 
 Notes:
 - An idle Codex.app app-server holds no rollout open → correctly not listed.

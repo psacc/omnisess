@@ -61,7 +61,7 @@ Once installed, ten slash commands are available:
 | `/omnisess:digest` | Print a calendar day's sessions as Obsidian-compatible markdown with full Q&A | `/omnisess:digest --date 2026-05-09` |
 | `/omnisess:stats` | Tool-call counts and file-I/O activity from the transcript index | `/omnisess:stats --window 7d` |
 | `/omnisess:index` | Bulk-populate the transcript SQLite cache used by `stats` | `/omnisess:index --all` |
-| `/omnisess:ps` | Live Claude process tree with ancestor lineage (macOS) | `/omnisess:ps` |
+| `/omnisess:ps` | Live Claude + Codex process tree with ancestor lineage (macOS) | `/omnisess:ps` |
 | `/omnisess:skills-audit` | Classify Claude Code skills by usage (Keep / Borderline / Archive) | `/omnisess:skills-audit --window 90d` |
 
 Each command checks for the `omnisess` binary at invocation time and prints clear install instructions if it is not found.
@@ -114,7 +114,7 @@ claude:5c3f2742  ~/prj/myapp  (process alive, modified 47s ago)
 | `omnisess digest`             | Print a calendar day's sessions as Obsidian-compatible markdown |
 | `omnisess index --all`        | Bulk-populate the transcript SQLite index (Claude only in v1) |
 | `omnisess stats`              | Tool counts + file activity stats from the transcript index |
-| `omnisess ps`                 | Live Claude process tree with ancestor lineage (macOS) |
+| `omnisess ps`                 | Live Claude + Codex process tree with ancestor lineage (macOS) |
 | `omnisess tui`                | Interactive terminal UI for browsing sessions     |
 | `omnisess version`            | Print the installed omnisess version              |
 | `omnisess skills audit`       | Classify skills by usage (Keep/Borderline/Archive); see [docs/skills-audit.md](docs/skills-audit.md) |

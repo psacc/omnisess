@@ -31,9 +31,9 @@
 
 2. **Candidate filtering from the existing ps snapshot** — PIDs whose `comm` basename is `codex`. Catches both the TUI binary and Codex.app's app-server. No candidates → no lsof call.
 
-3. **One `lsof` invocation for all candidates** (`-a -p p1,p2 -F pfn`), machine-readable `-F` output parsed into pid→{cwd, open rollout paths}. Each open rollout = one session (an app-server with N live threads yields N sessions sharing a PID).
+3. **One `lsof` invocation for all candidates** (`-n -P -a -p p1,p2 -F pfn`; `-n -P` skip DNS/port-name resolution since codex holds open sockets), machine-readable `-F` output parsed into pid→{cwd, open rollout paths}. Each open rollout = one session (an app-server with N live threads yields N sessions sharing a PID).
 
-4. **session_meta first-line parse with filename fallback.** Read the rollout's first line (bounded scanner, 4 MiB cap) for id, cwd, started-at, originator→Entrypoint, cli_version→Version. If unreadable/malformed, fall back to id + start time parsed from the filename and cwd from lsof; warn on stderr only for read errors, not for fallback use.
+4. **session_meta first-line parse with filename fallback.** Read the rollout's first line (bounded scanner, 4 MiB cap) for id, cwd, started-at, originator→Entrypoint, cli_version→Version. If unreadable/malformed, fall back to id + start time parsed from the filename and cwd from lsof, warning on stderr. A held `.jsonl` is dropped (with a warning) only when meta AND filename parses both fail — so a future rollout-naming change degrades loudly, not silently.
 
 5. **`Tool` field on `procsnap.Session`** (`"claude"`/`"codex"`), set for both enumerations. `cmd/ps.go` renders `s.Tool` in the leaf label. `ps --json` gains the field (additive). `internal/tui.ApplySnapshot` filters the snapshot map to claude entries to preserve its documented claude-only contract.
 
@@ -47,6 +47,7 @@
 - [lsof unavailable/sandboxed] Mitigation: warn to stderr, return claude-only sessions (same best-effort posture as the existing `ps` failure path).
 - [PID reuse between ps and lsof] Negligible window; lsof `-a` conjunction means a reused PID would have to be another codex process holding a rollout open.
 - [Shared rollout fd across PIDs] A forked codex child inheriting the rollout fd would yield duplicate rows for one session. Not observed in practice (verified live: N rollouts, N distinct holders); no dedup in v1.
+- [Binary-name edge] Candidate matching is comm-basename == `codex`; running the raw arch-suffixed binary (e.g. `codex-aarch64-apple-darwin`) directly would be missed. Accepted: every supported install path (brew cask shim, Codex.app) exposes comm `codex`.
 - [Codex UUIDv7 short-id ambiguity] The first 8 displayed chars of codex ids are mostly timestamp bits, so near-simultaneous sessions can render the same short id. Accepted: display stays consistent with every other command (first 8, prefix-resolvable by `show`); full ids are in `--json`.
 
 ## Migration Plan

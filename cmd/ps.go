@@ -110,10 +110,18 @@ func leafLabel(s procsnap.Session, now time.Time) string {
 		name = shortID(s.SessionID)
 	}
 	project := projectBase(s.CWD)
-	age := formatAge(now.Sub(s.StartedAt))
+	// A zero start time (codex fallback rows with no parseable timestamp)
+	// would render an absurd age; show "?" instead.
+	age := "?"
+	if !s.StartedAt.IsZero() {
+		age = formatAge(now.Sub(s.StartedAt))
+	}
 	entry := s.Entrypoint
 	if entry == "claude-desktop" {
 		entry = "desktop"
+	}
+	if entry == "" {
+		entry = "-"
 	}
 	return fmt.Sprintf("%s  %s  %s (%s)  %s  %s",
 		s.Tool, name, project, shortID(s.SessionID), entry, age)

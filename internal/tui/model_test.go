@@ -711,6 +711,9 @@ func TestApplySnapshot_IgnoresCodexEntries(t *testing.T) {
 	if got[0].Active {
 		t.Error("codex snapshot entry must not activate a claude session")
 	}
+	if got[0].Title != "" {
+		t.Errorf("codex entry Name must not cascade into claude Title, got %q", got[0].Title)
+	}
 }
 
 func TestApplySnapshot_EmptySnapshotZeroesClaude(t *testing.T) {

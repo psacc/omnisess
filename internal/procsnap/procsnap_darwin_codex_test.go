@@ -3,8 +3,10 @@
 package procsnap
 
 import (
+	"bytes"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -33,6 +35,16 @@ func stubCodexLsof(t *testing.T, fn func(pids []int) ([]byte, error)) {
 	orig := codexLsofFn
 	codexLsofFn = fn
 	t.Cleanup(func() { codexLsofFn = orig })
+}
+
+// captureWarnings swaps warnW for a buffer and returns it.
+func captureWarnings(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	orig := warnW
+	warnW = &buf
+	t.Cleanup(func() { warnW = orig })
+	return &buf
 }
 
 // codexProcs is a minimal proc table with two codex processes (a TUI and a
@@ -73,9 +85,13 @@ func TestCodexSessions_HappyPath(t *testing.T) {
 		return []byte(out), nil
 	})
 
+	warns := captureWarnings(t)
 	got := codexSessions(codexProcs())
 	if len(got) != 3 {
 		t.Fatalf("expected 3 codex sessions, got %d: %+v", len(got), got)
+	}
+	if !strings.Contains(warns.String(), "skipping") || !strings.Contains(warns.String(), "notes.jsonl") {
+		t.Errorf("held non-rollout jsonl must be skipped with a warning, got %q", warns.String())
 	}
 
 	// 7001: valid session_meta — meta values win over filename/lsof fallbacks.
@@ -118,6 +134,9 @@ func TestCodexSessions_HappyPath(t *testing.T) {
 
 	// 7002 / rollout c003: valid meta without cwd/timestamp — partial fallbacks.
 	s = got[2]
+	if s.PID != 7002 {
+		t.Errorf("session 2 must share PID 7002 with session 1, got %d", s.PID)
+	}
 	if s.SessionID != "019eb000-0000-7000-8000-00000000c003" || s.Entrypoint != "codex-exec" {
 		t.Errorf("session 2 meta fields: %+v", s)
 	}
@@ -150,16 +169,93 @@ func TestCodexSessions_DirError(t *testing.T) {
 	codexSessionsDirFn = func() (string, error) { return "", errors.New("no home") }
 	t.Cleanup(func() { codexSessionsDirFn = orig })
 
+	warns := captureWarnings(t)
 	if got := codexSessions(codexProcs()); got != nil {
 		t.Errorf("dir error must yield nil, got %+v", got)
+	}
+	if !strings.Contains(warns.String(), "codex sessions dir") {
+		t.Errorf("expected dir warning on stderr, got %q", warns.String())
 	}
 }
 
 func TestCodexSessions_LsofErrorNoOutput(t *testing.T) {
 	stubCodexDir(t)
 	stubCodexLsof(t, func([]int) ([]byte, error) { return nil, errors.New("lsof: not found") })
+	warns := captureWarnings(t)
 	if got := codexSessions(codexProcs()); got != nil {
 		t.Errorf("lsof failure must yield nil, got %+v", got)
+	}
+	if !strings.Contains(warns.String(), "lsof failed") {
+		t.Errorf("expected lsof warning on stderr, got %q", warns.String())
+	}
+}
+
+func TestCodexSessions_LsofExitErrorWithStderrDetail(t *testing.T) {
+	stubCodexDir(t)
+	// Manufacture a real *exec.ExitError, then attach captured stderr the way
+	// exec.Cmd.Output does.
+	runErr := exec.Command("false").Run()
+	var ee *exec.ExitError
+	if !errors.As(runErr, &ee) {
+		t.Fatalf("expected ExitError from false, got %v", runErr)
+	}
+	ee.Stderr = []byte("lsof: restricted\n")
+	stubCodexLsof(t, func([]int) ([]byte, error) { return nil, ee })
+	warns := captureWarnings(t)
+	if got := codexSessions(codexProcs()); got != nil {
+		t.Errorf("lsof failure must yield nil, got %+v", got)
+	}
+	if !strings.Contains(warns.String(), "lsof: restricted") {
+		t.Errorf("warning must include lsof stderr detail, got %q", warns.String())
+	}
+}
+
+func TestCodexSessions_BadFilenameValidMeta(t *testing.T) {
+	// A held .jsonl whose name fails the rollout pattern but whose first
+	// line is valid session_meta must still be detected (format-drift
+	// resilience): the meta supplies everything the filename could not.
+	stubCodexDir(t)
+	stubCodexLsof(t, func([]int) ([]byte, error) {
+		out := "p7001\nfcwd\nn/Users/me/prj/x\nf34\nn" +
+			filepath.Join(codexFixtureDay, "live.jsonl") + "\n"
+		return []byte(out), nil
+	})
+	warns := captureWarnings(t)
+	got := codexSessions(codexProcs())
+	if len(got) != 1 {
+		t.Fatalf("expected 1 session from meta-only identification, got %+v", got)
+	}
+	s := got[0]
+	if s.SessionID != "019eb000-0000-7000-8000-00000000a007" || s.CWD != "/Users/me/prj/renamed" {
+		t.Errorf("meta-only session fields: %+v", s)
+	}
+	if !s.StartedAt.Equal(time.Date(2026, 6, 9, 15, 30, 0, 0, time.UTC)) {
+		t.Errorf("meta-only started = %v", s.StartedAt)
+	}
+	if strings.Contains(warns.String(), "live.jsonl") {
+		t.Errorf("valid-meta file must not be warned about, got %q", warns.String())
+	}
+}
+
+func TestCodexSessions_LsofScanError(t *testing.T) {
+	// A pathological lsof line longer than the scanner cap truncates the
+	// stream: records before the bad line are kept, a warning is emitted.
+	origMax := codexLsofMaxLine
+	codexLsofMaxLine = 64
+	t.Cleanup(func() { codexLsofMaxLine = origMax })
+
+	stubCodexDir(t)
+	stubCodexLsof(t, func([]int) ([]byte, error) {
+		out := "p7001\nfcwd\nn/Users/me/prj/x\nn" + strings.Repeat("y", 200) + "\n"
+		return []byte(out), nil
+	})
+	warns := captureWarnings(t)
+	got := codexSessions(codexProcs())
+	if got != nil {
+		t.Errorf("no rollouts in truncated stream, got %+v", got)
+	}
+	if !strings.Contains(warns.String(), "parsing lsof output") {
+		t.Errorf("expected scan-error warning, got %q", warns.String())
 	}
 }
 
@@ -180,6 +276,7 @@ func TestCodexSessions_LsofErrorWithOutputIsUsed(t *testing.T) {
 			fixtureRollout("rollout-2026-06-09T12-00-00-019eb000-0000-7000-8000-00000000a001.jsonl") + "\n"
 		return []byte(out), errors.New("exit status 1")
 	})
+	captureWarnings(t)
 	got := codexSessions(codexProcs())
 	if len(got) != 1 || got[0].SessionID != "019eb000-0000-7000-8000-00000000a001" {
 		t.Fatalf("expected 1 session from partial lsof output, got %+v", got)
@@ -236,6 +333,49 @@ func TestEnumerate_IncludesCodex(t *testing.T) {
 	}
 }
 
+func TestEnumerate_ClaudeSurvivesLsofFailure(t *testing.T) {
+	// Spec: lsof failure must not break the claude listing — claude-only
+	// tree plus a stderr warning.
+	origDir := sessionsDirFn
+	sessionsDirFn = func() (string, error) {
+		return filepath.Join("testdata", "sessions"), nil
+	}
+	t.Cleanup(func() { sessionsDirFn = origDir })
+
+	origKill := killFn
+	killFn = func(pid int) error {
+		if pid == 52333 {
+			return nil
+		}
+		return errors.New("dead")
+	}
+	t.Cleanup(func() { killFn = origKill })
+
+	origPS := psRunnerFn
+	psRunnerFn = func() ([]byte, error) {
+		return []byte(`    1     0 launchd          /sbin/launchd
+52333     1 claude           /usr/local/bin/claude
+ 7001     1 codex            codex --yolo
+`), nil
+	}
+	t.Cleanup(func() { psRunnerFn = origPS })
+
+	stubCodexDir(t)
+	stubCodexLsof(t, func([]int) ([]byte, error) { return nil, errors.New("boom") })
+	warns := captureWarnings(t)
+
+	snap, err := Enumerate()
+	if err != nil {
+		t.Fatalf("Enumerate: %v", err)
+	}
+	if len(snap.Sessions) != 1 || snap.Sessions[0].Tool != ToolClaude {
+		t.Fatalf("expected claude-only snapshot, got %+v", snap.Sessions)
+	}
+	if !strings.Contains(warns.String(), "lsof failed") {
+		t.Errorf("expected lsof warning, got %q", warns.String())
+	}
+}
+
 func TestParseCodexLsof(t *testing.T) {
 	dir := filepath.Join("testdata", "codex-sessions")
 	rollout := fixtureRollout("rollout-2026-06-09T12-00-00-019eb000-0000-7000-8000-00000000a001.jsonl")
@@ -255,7 +395,10 @@ func TestParseCodexLsof(t *testing.T) {
 		"n" + filepath.Join(dir, "2026", "06", "09") + "/other.log", // wrong suffix
 	}, "\n") + "\n"
 
-	got := parseCodexLsof([]byte(raw), dir)
+	got, err := parseCodexLsof([]byte(raw), dir)
+	if err != nil {
+		t.Fatalf("parseCodexLsof: %v", err)
+	}
 	if len(got) != 1 {
 		t.Fatalf("expected 1 pid, got %+v", got)
 	}
