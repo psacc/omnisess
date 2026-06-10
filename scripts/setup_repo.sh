@@ -69,7 +69,7 @@ apply_protection() {
 {
   "required_status_checks": {
     "strict": false,
-    "contexts": ["check"]
+    "contexts": ["check", "cover-check"]
   },
   "enforce_admins": false,
   "required_pull_request_reviews": null,

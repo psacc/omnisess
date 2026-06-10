@@ -19,6 +19,7 @@ Direct push to `main` is **blocked by GitHub branch protection**. All changes MU
 Branch protection settings applied:
 - Squash-only merges (no merge commits, no rebase)
 - Linear history required
+- Required status checks: `check` **and** `cover-check` — both CI jobs must be green to merge
 - Auto-delete branch on merge
 - `enforce_admins: false` (solo project — tighten via `--force` if collaborators join)
 
