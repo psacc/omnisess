@@ -37,6 +37,7 @@ func sanitizeSession(s *model.Session) model.Session {
 	out.Project = sanitizeString(out.Project)
 	out.Branch = sanitizeString(out.Branch)
 	out.Model = sanitizeString(out.Model)
+	out.Status = sanitizeString(out.Status)
 
 	if len(s.Messages) > 0 {
 		out.Messages = make([]model.Message, len(s.Messages))

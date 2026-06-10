@@ -99,25 +99,26 @@ func (m Model) Quitting() bool {
 	return m.quitting
 }
 
-// ApplySnapshot overrides the Active flag for every claude session based on
-// the snapshot, and cascades the live /rename Name into Title when non-empty.
-// Non-claude sessions are untouched. Caller must only invoke this when
-// Enumerate returned nil error (never on ErrUnsupported).
+// ApplySnapshot overrides the Active flag for every process-correlated
+// session (claude and codex — the tools the snapshot can attribute) based on
+// the snapshot, cascades the registry Status, and cascades the live /rename
+// Name into Title when non-empty (claude only; codex carries no Name).
+// Sessions of other tools keep their heuristic flags. Caller must only
+// invoke this when the snapshot call returned nil error (never on
+// ErrUnsupported).
 func ApplySnapshot(sessions []model.Session, snap procsnap.Snapshot) []model.Session {
-	bySessionID := make(map[string]procsnap.Session, len(snap.Sessions))
+	// Keyed by (tool, id): a codex snapshot entry must never activate a
+	// claude session on a (theoretical) ID overlap, and vice versa.
+	type liveKey struct{ tool, id string }
+	byKey := make(map[liveKey]procsnap.Session, len(snap.Sessions))
 	for _, s := range snap.Sessions {
-		// The snapshot may carry non-claude sessions (e.g. codex); this
-		// function's contract is claude-only, so they are excluded here.
-		if s.Tool != procsnap.ToolClaude {
-			continue
-		}
-		bySessionID[s.SessionID] = s
+		byKey[liveKey{s.Tool, s.SessionID}] = s
 	}
 	for i := range sessions {
-		if sessions[i].Tool != model.ToolClaude {
+		if sessions[i].Tool != model.ToolClaude && sessions[i].Tool != model.ToolCodex {
 			continue
 		}
-		live, ok := bySessionID[sessions[i].ID]
+		live, ok := byKey[liveKey{string(sessions[i].Tool), sessions[i].ID}]
 		sessions[i].Active = ok
 		if ok {
 			sessions[i].Status = live.Status

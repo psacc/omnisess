@@ -1013,7 +1013,7 @@ func withSnapshot(t *testing.T, snap procsnap.Snapshot, err error) {
 	t.Cleanup(func() { snapshotFn = orig })
 }
 
-// TestActiveStatus_SnapshotHit covers the lsof-correlated arm: a codex
+// TestList_SnapshotRoutesActive covers the lsof-correlated arm: a codex
 // session whose rollout file is held by a live process is active even with
 // an ancient transcript mtime. Codex carries no registry status.
 func TestList_SnapshotRoutesActive(t *testing.T) {

@@ -20,7 +20,7 @@
 
 ## 4. model + output
 
-- [x] 4.1 Add `Status string \`json:"status,omitempty"\`` to `model.Session`
+- [x] 4.1 Add `Status string` (JSON key `Status`, omitempty — consistent with the existing capitalized tags) to `model.Session`
 - [x] 4.2 `renderTable`: add `ID` column (short session ID); rename `STARTED` → `UPDATED` rendering `UpdatedAt`; status cell `ACTIVE (busy)` / `ACTIVE` / `-`
 - [x] 4.3 `renderSessionDetail`: show status when present; show Updated timestamp
 - [x] 4.4 Update output/cmd/tui tests for the new columns and field
@@ -37,4 +37,4 @@
 
 - [x] 6.1 `make check`, `make cover-check`, `make smoke` green
 - [x] 6.2 Manual reconciliation on real data: every claude/codex session in `omnisess active` appears in `omnisess ps`; counts explained
-- [x] 6.3 `omnisess active --format json` carries `status`
+- [x] 6.3 `omnisess active --json` carries the `Status` field
