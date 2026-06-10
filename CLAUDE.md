@@ -110,6 +110,7 @@ See [`docs/dev-harness.md`](docs/dev-harness.md) for the full development harnes
 ## Key Files
 
 - `internal/source/source.go` -- Source interface contract
+- `ROADMAP.md` -- Priorities and phases (strategic context block on top)
 - `ARCHITECTURE.md` -- System codemap
 - `docs/dev-harness.md` -- Development harness guide (tests, linting, hooks)
 - `docs/references/` -- File format specs for each tool
