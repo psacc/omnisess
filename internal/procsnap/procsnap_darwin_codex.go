@@ -37,7 +37,9 @@ var codexLsofFn = func(pids []int) ([]byte, error) {
 	for i, p := range pids {
 		strs[i] = strconv.Itoa(p)
 	}
-	cmd := exec.Command("lsof", "-a", "-p", strings.Join(strs, ","), "-F", "pfn")
+	// -n/-P skip host/port name resolution: codex holds open TCP
+	// sockets and a slow DNS would otherwise stall the listing.
+	cmd := exec.Command("lsof", "-n", "-P", "-a", "-p", strings.Join(strs, ","), "-F", "pfn")
 	return cmd.Output()
 }
 
@@ -144,6 +146,7 @@ func parseCodexLsof(raw []byte, sessionsDir string) map[int]codexProc {
 		}
 		switch line[0] {
 		case 'p':
+			fd = "" // fd state never carries across process records
 			n, err := strconv.Atoi(line[1:])
 			if err != nil {
 				pid = 0
@@ -177,7 +180,8 @@ const rolloutUUIDLen = 36
 // parseRolloutFilename extracts the session ID and start time encoded in a
 // rollout filename. The start time is best-effort (zero when unparseable,
 // interpreted in local time — codex names files with the local clock); ok
-// is false when the name does not carry a plausible session UUID.
+// is false when the name lacks the rollout-…-<id>.jsonl shape with a
+// long-enough id suffix (the tail is not validated as a strict UUID).
 func parseRolloutFilename(path string) (id string, started time.Time, ok bool) {
 	base := filepath.Base(path)
 	if !strings.HasPrefix(base, "rollout-") || !strings.HasSuffix(base, ".jsonl") {

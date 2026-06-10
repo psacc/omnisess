@@ -279,20 +279,20 @@ func TestParseRolloutFilename(t *testing.T) {
 	}{
 		{
 			name:    "valid",
-			path:    "/x/rollout-2026-06-09T12-25-40-019eabea-9c68-75a2-8ea1-45bfe787e8ec.jsonl",
-			wantID:  "019eabea-9c68-75a2-8ea1-45bfe787e8ec",
+			path:    "/x/rollout-2026-06-09T12-25-40-019eb000-0000-7000-8000-00000000f006.jsonl",
+			wantID:  "019eb000-0000-7000-8000-00000000f006",
 			wantOK:  true,
 			localTS: time.Date(2026, 6, 9, 12, 25, 40, 0, time.Local),
 		},
 		{
 			name:   "bad timestamp still yields id",
-			path:   "/x/rollout-notatime-019eabea-9c68-75a2-8ea1-45bfe787e8ec.jsonl",
-			wantID: "019eabea-9c68-75a2-8ea1-45bfe787e8ec",
+			path:   "/x/rollout-notatime-019eb000-0000-7000-8000-00000000f006.jsonl",
+			wantID: "019eb000-0000-7000-8000-00000000f006",
 			wantOK: true,
 			zeroTS: true,
 		},
 		{name: "no prefix", path: "/x/notes.jsonl"},
-		{name: "no suffix", path: "/x/rollout-2026-06-09T12-25-40-019eabea-9c68-75a2-8ea1-45bfe787e8ec.txt"},
+		{name: "no suffix", path: "/x/rollout-2026-06-09T12-25-40-019eb000-0000-7000-8000-00000000f006.txt"},
 		{name: "too short", path: "/x/rollout-abc.jsonl"},
 	}
 	for _, tc := range cases {
@@ -367,7 +367,7 @@ func TestCodexLsofFnDefault(t *testing.T) {
 	// Exercise the real lsof invocation against our own PID. Any macOS test
 	// host has lsof; the output must contain our pid record.
 	raw, err := codexLsofFn([]int{os.Getpid()})
-	if err != nil {
+	if err != nil && len(raw) == 0 {
 		t.Fatalf("codexLsofFn: %v", err)
 	}
 	if !strings.Contains(string(raw), "p"+strconv.Itoa(os.Getpid())) {

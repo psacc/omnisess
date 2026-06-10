@@ -87,7 +87,7 @@ func TestRunPS_JSONWithSessions(t *testing.T) {
 	var buf bytes.Buffer
 	err := runPSWith(&buf, func() (procsnap.Snapshot, error) {
 		return procsnap.Snapshot{
-			Sessions: []procsnap.Session{{PID: 42, SessionID: "xyz"}},
+			Sessions: []procsnap.Session{{Tool: procsnap.ToolClaude, PID: 42, SessionID: "xyz"}},
 		}, nil
 	}, true)
 	if err != nil {
@@ -99,6 +99,9 @@ func TestRunPS_JSONWithSessions(t *testing.T) {
 	}
 	if len(decoded.Sessions) != 1 || decoded.Sessions[0].PID != 42 {
 		t.Errorf("roundtripped snapshot mismatch: %+v", decoded)
+	}
+	if decoded.Sessions[0].Tool != procsnap.ToolClaude {
+		t.Errorf("JSON output must carry the Tool field, got %q", decoded.Sessions[0].Tool)
 	}
 }
 

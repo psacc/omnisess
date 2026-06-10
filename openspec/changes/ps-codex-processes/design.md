@@ -46,6 +46,8 @@
 - [Codex format drift] `session_meta` shape or rollout path scheme changes upstream. Mitigation: filename fallback keeps id/started-at; parse failures degrade to fallback, never error out the command.
 - [lsof unavailable/sandboxed] Mitigation: warn to stderr, return claude-only sessions (same best-effort posture as the existing `ps` failure path).
 - [PID reuse between ps and lsof] Negligible window; lsof `-a` conjunction means a reused PID would have to be another codex process holding a rollout open.
+- [Shared rollout fd across PIDs] A forked codex child inheriting the rollout fd would yield duplicate rows for one session. Not observed in practice (verified live: N rollouts, N distinct holders); no dedup in v1.
+- [Codex UUIDv7 short-id ambiguity] The first 8 displayed chars of codex ids are mostly timestamp bits, so near-simultaneous sessions can render the same short id. Accepted: display stays consistent with every other command (first 8, prefix-resolvable by `show`); full ids are in `--json`.
 
 ## Migration Plan
 
