@@ -15,7 +15,7 @@ license: MIT
 allowed-tools: Bash
 argument-hint: "[--root <path>...] [--window 30d|90d|180d] [--allowlist <path>] [--format markdown|json] [-o <file>]"
 metadata:
-  version: 0.9.1
+  version: 0.10.0
 ---
 
 # omnisess skills audit

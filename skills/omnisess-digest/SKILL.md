@@ -15,7 +15,7 @@ license: MIT
 allowed-tools: Bash
 argument-hint: "[--date YYYY-MM-DD] [--tool <name>] [--limit N]"
 metadata:
-  version: 0.9.1
+  version: 0.10.0
 ---
 
 # omnisess digest
