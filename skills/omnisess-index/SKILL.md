@@ -15,7 +15,7 @@ license: MIT
 allowed-tools: Bash
 argument-hint: "--all [--full] [--rebuild]"
 metadata:
-  version: 0.8.1
+  version: 0.9.0
 ---
 
 # omnisess index
