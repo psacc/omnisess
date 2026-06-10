@@ -33,7 +33,7 @@ go install github.com/psacc/omnisess@latest
 | `omnisess-search` | Full-text search across all sessions |
 | `omnisess-list` | List sessions with filtering by tool, time, and limit |
 | `omnisess-active` | Show currently running sessions |
-| `omnisess-ps` | Process tree of live Claude sessions with ancestor lineage (macOS) |
+| `omnisess-ps` | Process tree of live Claude and Codex sessions with ancestor lineage (macOS) |
 | `omnisess-show` | Show full detail for a single session by ID |
 | `omnisess-recap` | Structured markdown briefing of sessions for a time window |
 | `omnisess-digest` | Print a calendar day's sessions as Obsidian-compatible markdown with full Q&A |

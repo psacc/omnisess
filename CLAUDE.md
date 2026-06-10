@@ -31,7 +31,7 @@ internal/source/copilot/    GitHub Copilot CLI parser (events.jsonl + VS Code wo
 internal/source/gemini/     Gemini session parser (stub)
 internal/detect/            Process detection utilities
 internal/output/            Table and JSON formatters
-internal/procsnap/          Live Claude process correlation (macOS only)
+internal/procsnap/          Live Claude/Codex process correlation (macOS only)
 internal/index/             SQLite transcript cache (OTel GenAI-aligned schema)
 docs/references/            File format specs for each tool's local data
 docs/exec-plans/            Implementation plans (active/ and completed/)

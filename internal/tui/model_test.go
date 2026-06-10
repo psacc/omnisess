@@ -684,7 +684,7 @@ func TestApplySnapshot_OverridesClaudeActive(t *testing.T) {
 		{ID: "any-cursor", Tool: model.ToolCursor, Active: true, UpdatedAt: time.Now()},
 	}
 	snap := procsnap.Snapshot{
-		Sessions: []procsnap.Session{{SessionID: "live-claude"}},
+		Sessions: []procsnap.Session{{Tool: procsnap.ToolClaude, SessionID: "live-claude"}},
 	}
 	got := ApplySnapshot(sessions, snap)
 	if !got[0].Active {
@@ -695,6 +695,24 @@ func TestApplySnapshot_OverridesClaudeActive(t *testing.T) {
 	}
 	if !got[2].Active {
 		t.Errorf("cursor Active must be untouched (was true)")
+	}
+}
+
+func TestApplySnapshot_IgnoresCodexEntries(t *testing.T) {
+	sessions := []model.Session{
+		{ID: "shared-id", Tool: model.ToolClaude, Active: false, UpdatedAt: time.Now()},
+	}
+	// A codex entry in the snapshot must not mark a claude session active,
+	// even on (theoretical) ID overlap.
+	snap := procsnap.Snapshot{
+		Sessions: []procsnap.Session{{Tool: procsnap.ToolCodex, SessionID: "shared-id", Name: "x"}},
+	}
+	got := ApplySnapshot(sessions, snap)
+	if got[0].Active {
+		t.Error("codex snapshot entry must not activate a claude session")
+	}
+	if got[0].Title != "" {
+		t.Errorf("codex entry Name must not cascade into claude Title, got %q", got[0].Title)
 	}
 }
 
@@ -717,6 +735,7 @@ func TestModel_LineageOverlay_ToggleAndDismiss(t *testing.T) {
 	}
 	snap := procsnap.Snapshot{
 		Sessions: []procsnap.Session{{
+			Tool:      procsnap.ToolClaude,
 			SessionID: "aaa",
 			PID:       1234,
 			Ancestors: []procsnap.Ancestor{
@@ -768,8 +787,8 @@ func TestApplySnapshot_PopulatesRenameTitle(t *testing.T) {
 	}
 	snap := procsnap.Snapshot{
 		Sessions: []procsnap.Session{
-			{SessionID: "aaa", Name: "pair with alice"},
-			{SessionID: "bbb", Name: ""}, // no /rename
+			{Tool: procsnap.ToolClaude, SessionID: "aaa", Name: "pair with alice"},
+			{Tool: procsnap.ToolClaude, SessionID: "bbb", Name: ""}, // no /rename
 		},
 	}
 	got := ApplySnapshot(sessions, snap)
@@ -795,7 +814,7 @@ func TestModel_SnapshotTick_UpdatesSnapshot(t *testing.T) {
 	calls := 0
 	m.SetEnumerator(func() (procsnap.Snapshot, error) {
 		calls++
-		return procsnap.Snapshot{Sessions: []procsnap.Session{{SessionID: "aaa"}}}, nil
+		return procsnap.Snapshot{Sessions: []procsnap.Session{{Tool: procsnap.ToolClaude, SessionID: "aaa"}}}, nil
 	})
 
 	// Simulate the tick message delivery.

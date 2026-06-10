@@ -1,0 +1,2 @@
+{"timestamp":"2026-06-09T10:00:00.000Z","type":"session_meta","payload":{"id":"019eb000-0000-7000-8000-00000000a001","timestamp":"2026-06-09T10:00:00Z","cwd":"/Users/me/prj/foo","originator":"codex-tui","cli_version":"0.138.0"}}
+{"timestamp":"2026-06-09T10:00:01.000Z","type":"response_item","payload":{}}
