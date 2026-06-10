@@ -138,7 +138,7 @@ func TestIsToolRunning(t *testing.T) {
 // tool name. We don't assert running/not-running (environment-dependent)
 // — we only verify the function doesn't panic and returns a bool.
 func TestIsToolRunning_KnownTools(t *testing.T) {
-	tools := []string{"claude", "cursor", "codex", "copilot", "gemini"}
+	tools := []string{"claude", "cursor", "codex", "copilot"}
 	for _, tool := range tools {
 		t.Run(tool, func(t *testing.T) {
 			_ = IsToolRunning(tool)

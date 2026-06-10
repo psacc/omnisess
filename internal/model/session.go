@@ -9,7 +9,6 @@ const (
 	ToolCodex   Tool = "codex"
 	ToolCopilot Tool = "copilot"
 	ToolCursor  Tool = "cursor"
-	ToolGemini  Tool = "gemini"
 )
 
 type Role string

@@ -1,6 +1,6 @@
 # omnisess
 
-Aggregate AI coding sessions across Claude Code, Cursor, Codex, GitHub Copilot CLI, and Gemini — search, list, and detect active sessions from one place.
+Aggregate AI coding sessions across Claude Code, Cursor, Codex, and GitHub Copilot CLI — search, list, and detect active sessions from one place.
 
 [![CI](https://github.com/psacc/omnisess/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/psacc/omnisess/actions/workflows/ci.yml)
 
@@ -99,7 +99,6 @@ claude:5c3f2742  ~/prj/myapp  (process alive, modified 47s ago)
 | Cursor              | Full   |
 | Codex               | Full   |
 | GitHub Copilot CLI  | Full   |
-| Gemini              | Stub   |
 
 ---
 
@@ -126,7 +125,7 @@ These flags are accepted by every subcommand:
 | Flag | Description |
 |---|---|
 | `--json` | Output as JSON instead of a table |
-| `--tool <name>` | Filter by source (`claude`, `cursor`, `codex`, `copilot`, `gemini`) |
+| `--tool <name>` | Filter by source (`claude`, `cursor`, `codex`, `copilot`) |
 | `--since <duration>` | Only sessions updated within duration (Go duration, plus `Nd` for days, `Nw` for weeks) |
 | `--date YYYY-MM-DD` | Only sessions updated on this calendar day (local time). Combines with `--since` by intersection |
 | `--limit N` | Max results (`0` = unlimited) |

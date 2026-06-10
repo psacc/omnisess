@@ -537,14 +537,14 @@ func TestFooterHelp_UnknownTool(t *testing.T) {
 	sessions := []model.Session{
 		{
 			ID:        "ddd44444-4444-4444-4444-444444444444",
-			Tool:      model.ToolGemini,
+			Tool:      model.Tool("unknown-tool"),
 			Project:   "/home/user/projects/gem",
 			Preview:   "Test session",
 			StartedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		},
 	}
-	// No modes registered for gemini.
+	// No modes registered for this synthetic tool.
 	m := New(sessions, map[model.Tool][]string{})
 	footer := m.footerHelp()
 

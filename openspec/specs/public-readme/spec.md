@@ -46,11 +46,11 @@ The README SHALL contain a **Quick start** section showing at least 3 runnable c
 ---
 
 ### Requirement: README contains supported sources table
-The README SHALL contain a **Supported sources** section with a Markdown table listing: Claude Code, Cursor, Codex, and Gemini. Each row SHALL include the source name and its implementation status (e.g., full, stub).
+The README SHALL contain a **Supported sources** section with a Markdown table listing: Claude Code, Cursor, Codex, and GitHub Copilot CLI. Each row SHALL include the source name and its implementation status (e.g., full, stub).
 
 #### Scenario: Four sources listed with status
 - **WHEN** the supported sources table is read
-- **THEN** rows for Claude Code, Cursor, Codex, and Gemini are present
+- **THEN** rows for Claude Code, Cursor, Codex, and GitHub Copilot CLI are present
 - **THEN** each row indicates the current implementation status
 
 ---

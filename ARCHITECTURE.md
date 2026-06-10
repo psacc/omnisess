@@ -6,7 +6,7 @@
 ## Data Flow
 
 ```
-Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.copilot/, ~/.gemini/
+Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.copilot/
                   + darwin only: ~/Library/Application Support/Code/User/workspaceStorage/)
         │
         ▼
@@ -44,7 +44,6 @@ Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.copilot/, ~/.gemini/
 - **internal/source/cursor/** — Reads `ai-tracking.db` for metadata, `agent-transcripts/*.txt` for content.
 - **internal/source/codex/** — Parses `~/.codex/history.jsonl` + session JSONL files.
 - **internal/source/copilot/** — Parses `~/.copilot/session-state/<uuid>/{events.jsonl,vscode.metadata.json}` for GitHub Copilot CLI sessions.
-- **internal/source/gemini/** — Stub. Returns empty results.
 - **internal/index/** — SQLite transcript cache. `Index` interface (`EnsureSession`, `QuerySession`, `QueryWindow`), OTel GenAI-aligned schema, `(mtime, size, has_full_payloads)` invalidation key, one transaction per session. Source-agnostic — converts via `SessionFromModel(*model.Session, providerName)`.
 - **internal/detect/process.go** — `IsProcessRunning(name)` and `IsFileRecentlyModified(path, threshold)`.
 - **internal/procsnap/** — Live-process correlation for Claude and Codex sessions (macOS only). `Enumerate()` scans `~/.claude/sessions/<PID>.json` for Claude (filters alive PIDs) and, for Codex, maps `codex` processes to the rollout JSONLs they hold open via one `lsof` call, parsing each rollout's `session_meta` first line. Walks ancestors via `ps`. Returns `ErrUnsupported` off darwin.

@@ -80,7 +80,7 @@ an absolute path like `/Users/example/prj/foo` will match any session whose
 **No changes needed in:**
 - `internal/source/source.go`
 - `internal/model/session.go`
-- Any source implementation (`claude/`, `cursor/`, `codex/`, `gemini/`)
+- Any source implementation (`claude/`, `cursor/`, `codex/`)
 
 ---
 

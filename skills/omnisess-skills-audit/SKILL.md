@@ -92,7 +92,7 @@ After presenting, add a one-line reminder:
 | **Keep** | ≥ 3 invocations in window, or skill is in the allowlist |
 | **Borderline** | 1–2 invocations in window |
 | **Archive** | 0 invocations and not allowlisted |
-| **Unknown** | Skill from a non-Claude source (Codex, Cursor, Gemini); telemetry not parsed in v0 |
+| **Unknown** | Skill from a non-Claude source (Codex, Cursor); telemetry not parsed in v0 |
 
 ## Examples
 
@@ -113,7 +113,7 @@ omnisess skills audit --root ~/prj --allowlist ~/.config/omnisess/allowlist.txt 
   deleted individually — removing one requires editing `plugin.json` and
   re-packaging. The audit will correctly classify them, but acting on Archive
   suggestions for bundled skills is a separate workflow.
-- **Non-Claude sources (v0)**: Codex, Cursor, and Gemini skills appear as
+- **Non-Claude sources (v0)**: Codex and Cursor skills appear as
   `Unknown` — invocation telemetry for those tools is not parsed in v0.
   Do not use the Archive tier for Unknown skills.
 - **Window too narrow**: a 30-day window will mark quarterly or incident-response

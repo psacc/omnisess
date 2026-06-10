@@ -1,5 +1,5 @@
 ---
-description: Full-text search across all AI coding sessions (Claude Code, Cursor, Codex, Gemini). Pass your search query as the argument.
+description: Full-text search across all AI coding sessions (Claude Code, Cursor, Codex, GitHub Copilot CLI). Pass your search query as the argument.
 argument-hint: "<query>"
 allowed-tools: Bash
 ---

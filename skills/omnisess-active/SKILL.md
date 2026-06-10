@@ -1,7 +1,7 @@
 ---
 name: active
 description: |
-  Show currently active AI coding sessions (Claude Code, Cursor, Codex, GitHub Copilot CLI, Gemini).
+  Show currently active AI coding sessions (Claude Code, Cursor, Codex, GitHub Copilot CLI).
   A session is active if the underlying process is alive and the session file was modified
   within the last 2 minutes.
   Use this skill when asked about active sessions, running sessions, what is currently open,

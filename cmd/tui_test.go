@@ -41,11 +41,11 @@ func TestBuildToolModes_KnownTools(t *testing.T) {
 }
 
 // TestBuildToolModes_ToolWithoutResumer verifies that tools without a
-// registered resumer (codex, gemini) are absent from the returned map.
+// registered resumer (codex) are absent from the returned map.
 func TestBuildToolModes_ToolWithoutResumer(t *testing.T) {
 	tm := buildToolModes()
 
-	for _, tool := range []model.Tool{model.ToolCodex, model.ToolGemini} {
+	for _, tool := range []model.Tool{model.ToolCodex} {
 		if modes, ok := tm[tool]; ok {
 			t.Errorf("buildToolModes: tool %q should not have modes, got %v", tool, modes)
 		}

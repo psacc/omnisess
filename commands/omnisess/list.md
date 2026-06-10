@@ -1,5 +1,5 @@
 ---
-description: List AI coding sessions across all sources (Claude Code, Cursor, Codex, Gemini). Supports filtering by tool, date, and limit.
+description: List AI coding sessions across all sources (Claude Code, Cursor, Codex, GitHub Copilot CLI). Supports filtering by tool, date, and limit.
 argument-hint: "[--tool <name>] [--since <duration>] [--limit N] [--json]"
 allowed-tools: Bash
 ---

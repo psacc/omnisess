@@ -163,8 +163,8 @@ func parseExemptions(s string) []string {
 // An exemption matches if:
 //   - pkg equals the exemption exactly (e.g. "github.com/psacc/omnisess" matches
 //     only the root package, not its subpackages), OR
-//   - pkg contains "/"+exemption as a path component (e.g. "gemini" matches
-//     any package whose path contains a "gemini" segment).
+//   - pkg contains "/"+exemption as a path component (e.g. "stub" matches
+//     any package whose path contains a "stub" segment).
 func isExempt(pkg string, exemptions []string) bool {
 	for _, e := range exemptions {
 		if pkg == e {

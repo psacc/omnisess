@@ -9,7 +9,7 @@ Last updated: 2026-06-10
 
 # omnisess Roadmap
 
-CLI that aggregates AI coding sessions across Claude Code, Cursor, Codex, GitHub Copilot CLI, and Gemini. See `CLAUDE.md` for invariants and the dev loop, `ARCHITECTURE.md` for the codemap.
+CLI that aggregates AI coding sessions across Claude Code, Cursor, Codex, and GitHub Copilot CLI. See `CLAUDE.md` for invariants and the dev loop, `ARCHITECTURE.md` for the codemap.
 
 ## Shipped (summary)
 
@@ -55,7 +55,7 @@ Informs resume/kill semantics for scheduled agents and worktree-aware session li
 
 ### 6. Exploratory backlog (unscheduled)
 
-- [ ] Gemini source: drop the stub or replace with Antigravity CLI support
+- [ ] Antigravity CLI source — on hold, deliberately unscheduled (successor to the dropped Gemini stub)
 - [ ] `recap` consuming `digest` output as a richer LLM source than list previews
 - [ ] Compare varda (Rust task-routing CLI) for overlap and fit
 - [ ] Copilot digest noise: strip verbose VS Code `command:…openSymbolFromReferences` URLs (no issue filed yet)

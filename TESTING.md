@@ -32,7 +32,7 @@ The agent runs on your local machine and has read access to real `~/.claude`, `~
 | Format observations ("header missing date", "table column misaligned") | Verbatim output excerpts longer than one line |
 | Boolean assertions ("digest output is valid UTF-8: yes") | Anything that quotes user content |
 
-**Synthetic fallback:** if a source has zero local data (e.g., you don't use Gemini), the agent generates a minimal fixture under `$TMPDIR/omnisess-qa/<source>/` and re-runs that source's command against it. The fallback is documented per-source in §4.
+**Synthetic fallback:** if a source has zero local data (e.g., you don't use Codex), the agent generates a minimal fixture under `$TMPDIR/omnisess-qa/<source>/` and re-runs that source's command against it. The fallback is documented per-source in §4.
 
 ## 4. Coverage Scope
 
