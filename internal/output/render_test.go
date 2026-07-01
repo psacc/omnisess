@@ -697,6 +697,40 @@ func TestRenderTable_StatusVariants(t *testing.T) {
 	}
 }
 
+// TestRenderTable_NameAndKindAnnotations covers the configured-name preview
+// override and the entrypoint/kind tags appended to the STATUS cell.
+func TestRenderTable_NameAndKindAnnotations(t *testing.T) {
+	updated := time.Date(2026, 6, 9, 18, 30, 0, 0, time.Local)
+	sessions := []model.Session{
+		// Named bg session: name replaces the preview text, [bg] tag appended.
+		{ID: "aaaaaaaa-0001", Tool: model.ToolClaude, Project: "/tmp/p1", UpdatedAt: updated, Active: true, Status: "idle", Name: "overnight job", Preview: "some first message", Entrypoint: "cli", Kind: "bg"},
+		// Desktop session: [desktop] tag, no name → preview retained.
+		{ID: "bbbbbbbb-0002", Tool: model.ToolClaude, Project: "/tmp/p2", UpdatedAt: updated, Active: true, Status: "busy", Preview: "desktop preview", Entrypoint: "claude-desktop"},
+		// Desktop + bg: both tags joined.
+		{ID: "cccccccc-0003", Tool: model.ToolClaude, Project: "/tmp/p3", UpdatedAt: updated, Active: true, Entrypoint: "claude-desktop", Kind: "bg"},
+	}
+
+	var buf bytes.Buffer
+	renderTable(&buf, sessions)
+	got := buf.String()
+
+	if !strings.Contains(got, "overnight job") {
+		t.Error("expected configured name to be shown in the preview cell")
+	}
+	if strings.Contains(got, "some first message") {
+		t.Error("first-message preview must be overridden by the configured name")
+	}
+	if !strings.Contains(got, "ACTIVE (idle) [bg]") {
+		t.Error("expected [bg] tag on the background cli session")
+	}
+	if !strings.Contains(got, "ACTIVE (busy) [desktop]") {
+		t.Error("expected [desktop] tag on the Claude Desktop session")
+	}
+	if !strings.Contains(got, "ACTIVE [desktop,bg]") {
+		t.Error("expected both tags joined for a desktop+bg session")
+	}
+}
+
 // TestRenderSessionDetail_Status covers the status line and Updated line in
 // the detail view.
 func TestRenderSessionDetail_Status(t *testing.T) {

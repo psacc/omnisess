@@ -21,6 +21,7 @@ type sessionFile struct {
 	StartedAt  time.Time
 	Version    string
 	Entrypoint string
+	Kind       string
 }
 
 // rawSessionFile mirrors the JSON keys emitted by Claude Code.
@@ -76,6 +77,7 @@ func scanSessionDir(dir string) ([]sessionFile, error) {
 			StartedAt:  time.UnixMilli(raw.StartedAt),
 			Version:    raw.Version,
 			Entrypoint: raw.Entrypoint,
+			Kind:       raw.Kind,
 		})
 	}
 	return out, nil

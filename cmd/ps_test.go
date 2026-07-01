@@ -310,6 +310,20 @@ func TestLeafLabel(t *testing.T) {
 			want: []string{"claude", "refactor auth", "foo", "abcdef12", "cli", "30s"},
 		},
 		{
+			name: "named-cli-bg",
+			session: procsnap.Session{
+				Tool:       procsnap.ToolClaude,
+				SessionID:  "bg00112233",
+				Name:       "overnight job",
+				Status:     "busy",
+				CWD:        "/Users/me/prj/foo",
+				StartedAt:  now.Add(-1 * time.Hour),
+				Entrypoint: "cli",
+				Kind:       "bg",
+			},
+			want: []string{"claude", "overnight job", "foo", "cli/bg", "(busy)", "1h"},
+		},
+		{
 			name: "unnamed-desktop",
 			session: procsnap.Session{
 				Tool:       procsnap.ToolClaude,

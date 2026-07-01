@@ -38,6 +38,7 @@ func sanitizeSession(s *model.Session) model.Session {
 	out.Branch = sanitizeString(out.Branch)
 	out.Model = sanitizeString(out.Model)
 	out.Status = sanitizeString(out.Status)
+	out.Name = sanitizeString(out.Name)
 
 	if len(s.Messages) > 0 {
 		out.Messages = make([]model.Message, len(s.Messages))
@@ -160,7 +161,14 @@ func renderTable(w io.Writer, sessions []model.Session) {
 	for _, s := range sessions {
 		branch := truncate(s.Branch, 16)
 		project := truncate(s.ShortProject(), 26)
-		preview := truncate(s.Preview, 48)
+		// A configured session name (claude /rename, set by agents like the
+		// obi harness) is more identifying than the first-message preview, so
+		// prefer it when present.
+		previewText := s.Preview
+		if s.Name != "" {
+			previewText = s.Name
+		}
+		preview := truncate(previewText, 48)
 		// Last activity, not session birth: the table is sorted by
 		// UpdatedAt, so the visible timestamp must match the sort key.
 		updated := s.UpdatedAt.Local().Format("2006-01-02 15:04")
@@ -172,16 +180,31 @@ func renderTable(w io.Writer, sessions []model.Session) {
 
 // statusCell renders the STATUS column: the live-process status when known
 // ("ACTIVE (busy)"), plain "ACTIVE" for live sessions without a status
-// signal, "-" otherwise.
+// signal, "-" otherwise. Non-default entrypoint/kind (Claude Desktop, or a
+// background CLI session) are annotated so they stand out from the common
+// interactive-cli case, e.g. "ACTIVE (idle) [bg]".
 func statusCell(s model.Session) string {
+	var base string
 	switch {
 	case s.Active && s.Status != "":
-		return fmt.Sprintf("ACTIVE (%s)", s.Status)
+		base = fmt.Sprintf("ACTIVE (%s)", s.Status)
 	case s.Active:
-		return "ACTIVE"
+		base = "ACTIVE"
 	default:
 		return "-"
 	}
+
+	var tags []string
+	if s.Entrypoint == "claude-desktop" {
+		tags = append(tags, "desktop")
+	}
+	if s.Kind == "bg" {
+		tags = append(tags, "bg")
+	}
+	if len(tags) > 0 {
+		base += " [" + strings.Join(tags, ",") + "]"
+	}
+	return base
 }
 
 func renderSessionDetail(w io.Writer, s *model.Session) {

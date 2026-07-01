@@ -63,6 +63,7 @@ func Enumerate() (Snapshot, error) {
 			CWD:        f.CWD,
 			StartedAt:  f.StartedAt,
 			Entrypoint: f.Entrypoint,
+			Kind:       f.Kind,
 			Version:    f.Version,
 			Ancestors:  walkAncestors(f.PID, procs),
 		})

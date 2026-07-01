@@ -123,6 +123,19 @@ func leafLabel(s procsnap.Session, now time.Time) string {
 	if entry == "" {
 		entry = "-"
 	}
+	// kind is orthogonal to entrypoint: a cli session may run in the
+	// background (claude -p / agent harness). Flag it so a bg row is
+	// distinguishable from an interactive one at a glance.
+	if s.Kind == "bg" {
+		entry += "/bg"
+	}
+	// Surface the registry status (busy/idle/waiting/...) the same way
+	// `active`/`list` do — ps rows are all live, so the useful signal is
+	// what each one is doing, not merely that it exists. Codex rows carry
+	// no status and render just the entrypoint.
+	if s.Status != "" {
+		entry += " (" + s.Status + ")"
+	}
 	return fmt.Sprintf("%s  %s  %s (%s)  %s  %s",
 		s.Tool, name, project, shortID(s.SessionID), entry, age)
 }
