@@ -31,6 +31,7 @@ type Session struct {
 	CWD        string
 	StartedAt  time.Time
 	Entrypoint string // claude: "cli" | "claude-desktop"; codex: originator, e.g. "codex-tui"
+	Kind       string // claude registry kind: "interactive" | "bg"; empty for codex
 	Version    string
 	Ancestors  []Ancestor // index 0 = immediate parent, last = root
 }
