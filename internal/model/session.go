@@ -21,20 +21,21 @@ const (
 )
 
 type Session struct {
-	ID         string    `json:"ID"`
-	Tool       Tool      `json:"Tool"`
-	Project    string    `json:"Project,omitempty"`
-	Branch     string    `json:"Branch,omitempty"`
-	Title      string    `json:"Title,omitempty"`
-	Summary    string    `json:"Summary,omitempty"`
-	Model      string    `json:"Model,omitempty"`
-	StartedAt  time.Time `json:"StartedAt"`
-	UpdatedAt  time.Time `json:"UpdatedAt"`
-	Active     bool      `json:"Active"`
-	Status     string    `json:"Status,omitempty"`     // live-process status (claude registry: busy/idle/waiting/shell/...); set only when Active
-	Name       string    `json:"Name,omitempty"`       // configured session name (claude /rename); set only when Active
-	Entrypoint string    `json:"Entrypoint,omitempty"` // claude: "cli" | "claude-desktop"; set only when Active
-	Kind       string    `json:"Kind,omitempty"`       // claude registry kind: "interactive" | "bg"; set only when Active
+	ID          string    `json:"ID"`
+	Tool        Tool      `json:"Tool"`
+	Project     string    `json:"Project,omitempty"`
+	Branch      string    `json:"Branch,omitempty"`
+	Title       string    `json:"Title,omitempty"`
+	Summary     string    `json:"Summary,omitempty"`
+	Model       string    `json:"Model,omitempty"`
+	StartedAt   time.Time `json:"StartedAt"`
+	UpdatedAt   time.Time `json:"UpdatedAt"`
+	Active      bool      `json:"Active"`
+	Status      string    `json:"Status,omitempty"`      // live-process status (claude registry: busy/idle/waiting/shell/...); set only when Active
+	Name        string    `json:"Name,omitempty"`        // configured session name (claude /rename); set only when Active
+	Entrypoint  string    `json:"Entrypoint,omitempty"`  // claude: "cli" | "claude-desktop"; set only when Active
+	Kind        string    `json:"Kind,omitempty"`        // claude registry kind: "interactive" | "bg"; set only when Active
+	TmuxSession string    `json:"TmuxSession,omitempty"` // owning tmux session name; set only when Active
 
 	Messages []Message `json:"Messages,omitempty"`
 	Preview  string    `json:"Preview,omitempty"`
