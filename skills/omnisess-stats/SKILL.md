@@ -14,7 +14,7 @@ license: MIT
 allowed-tools: Bash
 argument-hint: "[--session <id>] [--window <duration>] [--tool <name>] [--full] [--json]"
 metadata:
-  version: 0.10.0
+  version: 0.11.0
 ---
 
 # omnisess stats
