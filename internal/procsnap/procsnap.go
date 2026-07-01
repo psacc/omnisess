@@ -34,6 +34,11 @@ type Session struct {
 	Kind       string // claude registry kind: "interactive" | "bg"; empty for codex
 	Version    string
 	Ancestors  []Ancestor // index 0 = immediate parent, last = root
+
+	// TmuxSession is the tmux session name owning this process, resolved by
+	// PID (own or ancestor) against the live pane list — never by parsing the
+	// shared tmux server's -s arg. Empty when not under tmux or tmux absent.
+	TmuxSession string `json:"TmuxSession,omitempty"`
 }
 
 // Ancestor is one step up the process tree above a claude session.

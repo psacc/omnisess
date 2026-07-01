@@ -69,5 +69,13 @@ func Enumerate() (Snapshot, error) {
 		})
 	}
 	sessions = append(sessions, codexSessions(procs)...)
+
+	// Resolve the owning tmux session per row (own or ancestor PID), once per
+	// enumeration. Tool-agnostic: applies to both claude and codex rows.
+	panes := tmuxPanes()
+	for i := range sessions {
+		sessions[i].TmuxSession = resolveTmuxSession(sessions[i].PID, sessions[i].Ancestors, panes)
+	}
+
 	return Snapshot{Sessions: sessions, Built: time.Now()}, nil
 }

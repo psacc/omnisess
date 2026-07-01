@@ -266,6 +266,7 @@ type historyPeek struct {
 	name            string
 	entrypoint      string
 	kind            string
+	tmuxSession     string
 	branch          string
 	model           string
 }
@@ -348,20 +349,21 @@ func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 		preview := detect.Truncate(entry.Display, 120)
 
 		sess := model.Session{
-			ID:         entry.SessionID,
-			Tool:       model.ToolClaude,
-			Project:    entry.Project,
-			Title:      preview,
-			StartedAt:  entry.StartedAt,
-			UpdatedAt:  p.updatedAt,
-			Active:     p.active,
-			Status:     p.status,
-			Name:       p.name,
-			Entrypoint: p.entrypoint,
-			Kind:       p.kind,
-			Preview:    preview,
-			Branch:     p.branch,
-			Model:      p.model,
+			ID:          entry.SessionID,
+			Tool:        model.ToolClaude,
+			Project:     entry.Project,
+			Title:       preview,
+			StartedAt:   entry.StartedAt,
+			UpdatedAt:   p.updatedAt,
+			Active:      p.active,
+			Status:      p.status,
+			Name:        p.name,
+			Entrypoint:  p.entrypoint,
+			Kind:        p.kind,
+			TmuxSession: p.tmuxSession,
+			Preview:     preview,
+			Branch:      p.branch,
+			Model:       p.model,
 		}
 
 		sessions = append(sessions, sess)
@@ -393,20 +395,21 @@ func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 		}
 
 		sess := model.Session{
-			ID:         orphan.SessionID,
-			Tool:       model.ToolClaude,
-			Project:    orphan.Project,
-			Title:      orphan.Preview,
-			StartedAt:  orphan.UpdatedAt, // best we have
-			UpdatedAt:  updatedAt,
-			Active:     orphan.Active,
-			Status:     orphan.Status,
-			Name:       orphan.Name,
-			Entrypoint: orphan.Entrypoint,
-			Kind:       orphan.Kind,
-			Preview:    orphan.Preview,
-			Branch:     orphan.Branch,
-			Model:      orphan.Model,
+			ID:          orphan.SessionID,
+			Tool:        model.ToolClaude,
+			Project:     orphan.Project,
+			Title:       orphan.Preview,
+			StartedAt:   orphan.UpdatedAt, // best we have
+			UpdatedAt:   updatedAt,
+			Active:      orphan.Active,
+			Status:      orphan.Status,
+			Name:        orphan.Name,
+			Entrypoint:  orphan.Entrypoint,
+			Kind:        orphan.Kind,
+			TmuxSession: orphan.TmuxSession,
+			Preview:     orphan.Preview,
+			Branch:      orphan.Branch,
+			Model:       orphan.Model,
 		}
 
 		sessions = append(sessions, sess)
@@ -470,6 +473,7 @@ func peekHistoryEntry(entry sessionEntry, claudeRunning bool, snap procsnap.Snap
 		out.name = live.Name
 		out.entrypoint = live.Entrypoint
 		out.kind = live.Kind
+		out.tmuxSession = live.TmuxSession
 	} else if claudeRunning {
 		out.active = detect.IsSessionTreeRecentlyModified(out.sessionFilePath, detect.ActiveThreshold)
 	}
@@ -483,18 +487,19 @@ func peekHistoryEntry(entry sessionEntry, claudeRunning bool, snap procsnap.Snap
 
 // orphanSession holds data for a session file found on disk but not in history.jsonl.
 type orphanSession struct {
-	SessionID  string
-	Project    string
-	FilePath   string
-	UpdatedAt  time.Time
-	Preview    string
-	Branch     string
-	Model      string
-	Active     bool
-	Status     string
-	Name       string
-	Entrypoint string
-	Kind       string
+	SessionID   string
+	Project     string
+	FilePath    string
+	UpdatedAt   time.Time
+	Preview     string
+	Branch      string
+	Model       string
+	Active      bool
+	Status      string
+	Name        string
+	Entrypoint  string
+	Kind        string
+	TmuxSession string
 }
 
 // findOrphanSessions scans ~/.claude/projects/*/*.jsonl for session files
@@ -581,6 +586,7 @@ func peekOrphanFile(match, sessionID, project string, claudeRunning bool, snap p
 		out.Name = live.Name
 		out.Entrypoint = live.Entrypoint
 		out.Kind = live.Kind
+		out.TmuxSession = live.TmuxSession
 	} else if claudeRunning {
 		out.Active = detect.IsSessionTreeRecentlyModified(match, detect.ActiveThreshold)
 	}
