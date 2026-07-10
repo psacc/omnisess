@@ -110,11 +110,17 @@ type Format string
 const (
 	FormatTable Format = "table"
 	FormatJSON  Format = "json"
+	// FormatAxi is the agent-ergonomic mode: a minimal 5-field projection
+	// wrapped in an aggregate + next-step envelope, emitted as compact JSON.
+	// Additive — the table and --json contracts are untouched.
+	FormatAxi Format = "axi"
 )
 
 // RenderSessions outputs a list of sessions in the given format.
 func RenderSessions(sessions []model.Session, format Format) {
 	switch format {
+	case FormatAxi:
+		renderAxiSessionsStdout(sessions)
 	case FormatJSON:
 		renderJSON(os.Stdout, sanitizeSessions(sessions))
 	default:

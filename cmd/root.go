@@ -20,6 +20,7 @@ import (
 
 var (
 	flagJSON            bool
+	flagAxi             bool
 	flagTool            string
 	flagSince           string
 	flagDate            string
@@ -42,6 +43,8 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&flagJSON, "json", false, "Output as JSON")
+	rootCmd.PersistentFlags().BoolVar(&flagAxi, "axi", false,
+		"Agent-ergonomic output: minimal fields + aggregate + next-step hints, compact JSON (also OMNISESS_AXI env). Applies to list/active.")
 	rootCmd.PersistentFlags().StringVar(&flagTool, "tool", "", "Filter by tool (claude, cursor, codex, copilot)")
 	rootCmd.PersistentFlags().StringVar(&flagSince, "since", "", "Only sessions updated within duration (e.g., 24h, 7d, 2w)")
 	rootCmd.PersistentFlags().StringVar(&flagDate, "date", "", "Only sessions updated on this calendar day (YYYY-MM-DD, local time). Combines with --since by intersection.")
@@ -52,10 +55,24 @@ func init() {
 }
 
 func getFormat() output.Format {
+	if flagAxi || axiEnvEnabled() {
+		return output.FormatAxi
+	}
 	if flagJSON {
 		return output.FormatJSON
 	}
 	return output.FormatTable
+}
+
+// axiEnvEnabled reports whether OMNISESS_AXI requests axi output. Any value
+// other than unset/empty/"0"/"false" enables it, so `OMNISESS_AXI=1` works.
+func axiEnvEnabled() bool {
+	switch strings.ToLower(os.Getenv("OMNISESS_AXI")) {
+	case "", "0", "false":
+		return false
+	default:
+		return true
+	}
 }
 
 func getSources() []source.Source {
