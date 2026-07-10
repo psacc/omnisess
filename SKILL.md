@@ -11,7 +11,7 @@ license: MIT
 allowed-tools: Bash
 compatibility: "Requires Go 1.22+ (for building) or pre-built binary in PATH"
 metadata:
-  version: 0.12.0
+  version: 0.13.0
 ---
 
 # omnisess
