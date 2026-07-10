@@ -392,6 +392,25 @@ func TestRenderSessions_JSON(t *testing.T) {
 	}
 }
 
+func TestRenderSessions_Axi(t *testing.T) {
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	sessions := []model.Session{{ID: "test123", Tool: model.ToolClaude}}
+	RenderSessions(sessions, FormatAxi)
+
+	w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+
+	if !strings.Contains(buf.String(), "test123") {
+		t.Error("expected session ID in axi output")
+	}
+}
+
 func TestRenderSession_Table(t *testing.T) {
 	old := os.Stdout
 	r, w, _ := os.Pipe()

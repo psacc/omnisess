@@ -120,7 +120,7 @@ const (
 func RenderSessions(sessions []model.Session, format Format) {
 	switch format {
 	case FormatAxi:
-		renderAxiSessionsStdout(sessions)
+		renderAxiSessions(os.Stdout, sessions)
 	case FormatJSON:
 		renderJSON(os.Stdout, sanitizeSessions(sessions))
 	default:

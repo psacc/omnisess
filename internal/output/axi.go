@@ -3,7 +3,6 @@ package output
 import (
 	"encoding/json"
 	"io"
-	"os"
 
 	"github.com/psacc/omnisess/internal/model"
 )
@@ -96,9 +95,4 @@ func renderAxiSessions(w io.Writer, sessions []model.Session) {
 	enc := json.NewEncoder(w) // no SetIndent → compact, one line
 	enc.SetEscapeHTML(false)  // keep "<term>" readable, don't emit <
 	_ = enc.Encode(buildAxiEnvelope(sessions))
-}
-
-// renderAxiSessionsStdout is the os.Stdout entry point used by RenderSessions.
-func renderAxiSessionsStdout(sessions []model.Session) {
-	renderAxiSessions(os.Stdout, sessions)
 }
