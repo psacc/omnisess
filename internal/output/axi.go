@@ -69,7 +69,7 @@ func buildAxiEnvelope(sessions []model.Session) axiEnvelope {
 			Tool:    string(s.Tool),
 			ID:      s.ID,
 			Project: sanitizeString(s.ShortProject()),
-			Status:  st,
+			Status:  sanitizeString(st),
 			Updated: s.UpdatedAt.Local().Format("2006-01-02T15:04"),
 		})
 		summary.Total++

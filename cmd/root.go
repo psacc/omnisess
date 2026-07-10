@@ -55,11 +55,14 @@ func init() {
 }
 
 func getFormat() output.Format {
-	if flagAxi || axiEnvEnabled() {
+	if flagAxi {
 		return output.FormatAxi
 	}
 	if flagJSON {
 		return output.FormatJSON
+	}
+	if axiEnvEnabled() {
+		return output.FormatAxi
 	}
 	return output.FormatTable
 }
