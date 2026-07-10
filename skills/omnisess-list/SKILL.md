@@ -8,7 +8,7 @@ description: |
   "sessions today", "how many sessions", "show me my sessions".
 license: MIT
 allowed-tools: Bash
-argument-hint: "[--tool <name>] [--since <duration>] [--date YYYY-MM-DD] [--limit N] [--project <substr>] [--exclude-project <substr>] [--json]"
+argument-hint: "[--tool <name>] [--since <duration>] [--date YYYY-MM-DD] [--limit N] [--project <substr>] [--exclude-project <substr>] [--json] [--axi]"
 metadata:
   version: 0.12.0
 ---
@@ -55,4 +55,7 @@ omnisess list --limit 10
 
 # JSON output for scripting
 omnisess list --json
+
+# Agent-ergonomic output: minimal fields + aggregate + next-step hints (compact JSON)
+omnisess list --axi
 ```

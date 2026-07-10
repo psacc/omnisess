@@ -392,6 +392,25 @@ func TestRenderSessions_JSON(t *testing.T) {
 	}
 }
 
+func TestRenderSessions_Axi(t *testing.T) {
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	sessions := []model.Session{{ID: "test123", Tool: model.ToolClaude}}
+	RenderSessions(sessions, FormatAxi)
+
+	w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+
+	if !strings.Contains(buf.String(), "test123") {
+		t.Error("expected session ID in axi output")
+	}
+}
+
 func TestRenderSession_Table(t *testing.T) {
 	old := os.Stdout
 	r, w, _ := os.Pipe()
@@ -435,6 +454,28 @@ func TestRenderSession_JSON(t *testing.T) {
 	}
 }
 
+// TestRenderSession_Axi verifies that on the axi-unsupported `show` command,
+// FormatAxi falls back to the same JSON as FormatJSON, never a human table.
+func TestRenderSession_Axi(t *testing.T) {
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	sess := &model.Session{ID: "axi-show-test", Tool: model.ToolClaude}
+	RenderSession(sess, FormatAxi)
+
+	w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+
+	out := buf.String()
+	if !strings.Contains(out, `"ID": "axi-show-test"`) {
+		t.Errorf("expected JSON fallback for FormatAxi on show, got: %s", out)
+	}
+}
+
 func TestRenderSearchResults_Table(t *testing.T) {
 	old := os.Stdout
 	r, w, _ := os.Pipe()
@@ -474,6 +515,33 @@ func TestRenderSearchResults_JSON(t *testing.T) {
 
 	if !strings.Contains(buf.String(), "sr-test") {
 		t.Error("expected session ID in search results JSON output")
+	}
+}
+
+// TestRenderSearchResults_Axi verifies that on the axi-unsupported `search`
+// command, FormatAxi falls back to the same JSON as FormatJSON.
+func TestRenderSearchResults_Axi(t *testing.T) {
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	results := []model.SearchResult{
+		{
+			Session: model.Session{ID: "axi-sr-test", Tool: model.ToolClaude},
+			Matches: []model.SearchMatch{{Snippet: "found it", Role: model.RoleUser}},
+		},
+	}
+	RenderSearchResults(results, FormatAxi)
+
+	w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+
+	out := buf.String()
+	if !strings.Contains(out, `"ID": "axi-sr-test"`) {
+		t.Errorf("expected JSON fallback for FormatAxi on search, got: %s", out)
 	}
 }
 

@@ -110,11 +110,17 @@ type Format string
 const (
 	FormatTable Format = "table"
 	FormatJSON  Format = "json"
+	// FormatAxi is the agent-ergonomic mode: a minimal 5-field projection
+	// wrapped in an aggregate + next-step envelope, emitted as compact JSON.
+	// Additive — the table and --json contracts are untouched.
+	FormatAxi Format = "axi"
 )
 
 // RenderSessions outputs a list of sessions in the given format.
 func RenderSessions(sessions []model.Session, format Format) {
 	switch format {
+	case FormatAxi:
+		renderAxiSessions(os.Stdout, sessions)
 	case FormatJSON:
 		renderJSON(os.Stdout, sanitizeSessions(sessions))
 	default:
@@ -125,7 +131,7 @@ func RenderSessions(sessions []model.Session, format Format) {
 // RenderSession outputs a single session with full message history.
 func RenderSession(session *model.Session, format Format) {
 	switch format {
-	case FormatJSON:
+	case FormatJSON, FormatAxi:
 		sanitized := sanitizeSession(session)
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
@@ -138,7 +144,7 @@ func RenderSession(session *model.Session, format Format) {
 // RenderSearchResults outputs search results in the given format.
 func RenderSearchResults(results []model.SearchResult, format Format) {
 	switch format {
-	case FormatJSON:
+	case FormatJSON, FormatAxi:
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		enc.Encode(sanitizeSearchResults(results))

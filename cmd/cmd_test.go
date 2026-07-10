@@ -326,6 +326,7 @@ func TestShowSession_Found(t *testing.T) {
 // resetFlags resets all package-level flags to their zero values between tests.
 func resetFlags() {
 	flagJSON = false
+	flagAxi = false
 	flagTool = ""
 	flagSince = ""
 	flagDate = ""
@@ -376,6 +377,32 @@ func TestGetFormat_JSON(t *testing.T) {
 	got := getFormat()
 	if got != output.FormatJSON {
 		t.Errorf("getFormat() = %q, want %q", got, output.FormatJSON)
+	}
+}
+
+func TestGetFormat_Precedence(t *testing.T) {
+	tests := []struct {
+		name    string
+		axiFlag bool
+		json    bool
+		axiEnv  string
+		want    output.Format
+	}{
+		{name: "axi flag beats json flag", axiFlag: true, json: true, axiEnv: "1", want: output.FormatAxi},
+		{name: "explicit json beats axi env", json: true, axiEnv: "1", want: output.FormatJSON},
+		{name: "axi env enables axi", axiEnv: "1", want: output.FormatAxi},
+		{name: "nothing set is table", want: output.FormatTable},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resetFlags()
+			flagAxi = tt.axiFlag
+			flagJSON = tt.json
+			t.Setenv("OMNISESS_AXI", tt.axiEnv)
+			if got := getFormat(); got != tt.want {
+				t.Errorf("getFormat() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

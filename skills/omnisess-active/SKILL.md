@@ -25,6 +25,9 @@ Show currently active AI coding sessions.
 
 ```bash
 omnisess active
+
+# Agent-ergonomic output: minimal fields + aggregate + next-step hints (compact JSON)
+omnisess active --axi
 ```
 
 ## Instructions
