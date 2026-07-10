@@ -125,6 +125,7 @@ These flags are accepted by every subcommand:
 | Flag | Description |
 |---|---|
 | `--json` | Output as JSON instead of a table |
+| `--axi` | Agent-ergonomic output for `list`/`active`: a minimal 5-field session projection wrapped in an aggregate summary + next-step hints, as compact JSON (also via `OMNISESS_AXI` env var). `search`/`show` treat it as `--json`; other commands are unaffected |
 | `--tool <name>` | Filter by source (`claude`, `cursor`, `codex`, `copilot`) |
 | `--since <duration>` | Only sessions updated within duration (Go duration, plus `Nd` for days, `Nw` for weeks) |
 | `--date YYYY-MM-DD` | Only sessions updated on this calendar day (local time). Combines with `--since` by intersection |

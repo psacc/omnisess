@@ -19,12 +19,12 @@ Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.copilot/
   cmd/*                 (Cobra commands: list, search, show, active, digest, index, stats, ps, tui, skills audit, version)
         │
         ▼
-  internal/output/      (table or JSON rendering)
+  internal/output/      (table, JSON, or axi rendering)
 ```
 
 ## Package Map
 
-- **cmd/root.go** — Cobra root command. Global flags: `--json`, `--tool`, `--since`, `--date`, `--limit`, `--project`, `--exclude-project` (also `OMNISESS_EXCLUDE_PROJECTS` env var). Initializes source registry.
+- **cmd/root.go** — Cobra root command. Global flags: `--json`, `--axi`, `--tool`, `--since`, `--date`, `--limit`, `--project`, `--exclude-project` (also `OMNISESS_EXCLUDE_PROJECTS` env var). `--axi` (or `OMNISESS_AXI` env var) selects agent-ergonomic output for `list`/`active`; `getFormat()` gives `--axi` precedence over `--json`. Initializes source registry.
 - **cmd/list.go** — Aggregates `Source.List()` from all sources, sorts by `UpdatedAt` desc, renders table.
 - **cmd/search.go** — Calls `Source.Search()` in parallel via errgroup, merges results, renders with snippets.
 - **cmd/show.go** — Parses `tool:id` argument, calls `Source.Get()`, renders full conversation.
@@ -47,7 +47,8 @@ Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.copilot/
 - **internal/index/** — SQLite transcript cache. `Index` interface (`EnsureSession`, `QuerySession`, `QueryWindow`), OTel GenAI-aligned schema, `(mtime, size, has_full_payloads)` invalidation key, one transaction per session. Source-agnostic — converts via `SessionFromModel(*model.Session, providerName)`.
 - **internal/detect/process.go** — `IsProcessRunning(name)` and `IsFileRecentlyModified(path, threshold)`. Since #74 this is the *fallback* activeness heuristic only (Cursor/Copilot, and Claude/Codex when `procsnap` is unavailable).
 - **internal/procsnap/** — Live-process correlation for Claude and Codex sessions (macOS only). `Enumerate()` scans `~/.claude/sessions/<PID>.json` for Claude (filters alive PIDs) and, for Codex, maps `codex` processes to the rollout JSONLs they hold open via one `lsof` call, parsing each rollout's `session_meta` first line. Walks ancestors via `ps`. Returns `ErrUnsupported` off darwin. `Cached()` memoizes one snapshot per CLI run — the single authority for "active" that the claude/codex sources, `active`, `list`, and `ps` all share (#74).
-- **internal/output/render.go** — `RenderTable()` and `RenderJSON()` dispatched by format flag.
+- **internal/output/render.go** — `RenderSessions()` / `RenderSession()` / `RenderSearchResults()` dispatched by `Format` (`FormatTable`, `FormatJSON`, `FormatAxi`).
+- **internal/output/axi.go** — `FormatAxi` renderer: projects sessions into a minimal 5-field schema (`tool`, `id`, `project`, `status`, `updated`) wrapped in a pre-computed aggregate (total/active/per-status/per-tool counts) plus next-step command hints, emitted as compact HTML-unescaped JSON. Used only by `list`/`active` (`RenderSessions`); `RenderSession`/`RenderSearchResults` fall through to the indented `--json` shape.
 - **~~internal/search/search.go~~** — Planned, not yet implemented. Search currently lives in `cmd/search.go`.
 
 ## Invariants
