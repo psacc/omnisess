@@ -7,16 +7,17 @@ import (
 	"testing"
 )
 
-func TestCodexSessions_TruncatedCommand(t *testing.T) {
+func TestCodexSessions_ExactExecutableName(t *testing.T) {
 	tests := []struct {
 		name    string
 		command string
 		args    string
 		want    bool
 	}{
-		{name: "plain path", command: "/Users/example/.", args: "/Users/example/.codex/bin/codex app-server", want: true},
-		{name: "spaced path", command: "/Applications/AI", args: "/Applications/AI Tools/Codex.app/Contents/Resources/codex app-server", want: true},
+		{name: "cli", command: "codex", args: "codex --model example", want: true},
+		{name: "app-server", command: "codex", args: "/Applications/AI Tools/Codex.app/Contents/Resources/codex app-server --remote-control", want: true},
 		{name: "argument only", command: "tail", args: "tail -f /tmp/codex", want: false},
+		{name: "truncated path", command: "/Users/example/.", args: "/Users/example/.codex/bin/codex app-server", want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

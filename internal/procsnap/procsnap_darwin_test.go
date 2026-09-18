@@ -4,6 +4,7 @@ package procsnap
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -166,12 +167,6 @@ func TestSessionsDirFnDefault_HomeUnset(t *testing.T) {
 }
 
 func TestPSRunnerFnDefault(t *testing.T) {
-	// Assumes a normal macOS environment (ps in PATH, PID 1 visible).
-	// Darwin CI runs on real macOS so these invariants hold.
-	//
-	// Exercise the real psRunnerFn so the function-literal body is covered.
-	// `ps -Ao pid=,ppid=,comm=,args=` must succeed on any macOS test host
-	// and always includes PID 1 (launchd).
 	raw, err := psRunnerFn()
 	if err != nil {
 		t.Fatalf("psRunnerFn: %v", err)
@@ -185,5 +180,12 @@ func TestPSRunnerFnDefault(t *testing.T) {
 	}
 	if _, ok := procs[1]; !ok {
 		t.Error("expected PID 1 (launchd) in real ps output")
+	}
+	self, ok := procs[os.Getpid()]
+	if !ok {
+		t.Fatal("expected current test process in real ps output")
+	}
+	if self.Command != filepath.Base(os.Args[0]) {
+		t.Errorf("current process command = %q, want %q", self.Command, filepath.Base(os.Args[0]))
 	}
 }

@@ -9,7 +9,6 @@ import (
 	"strings"
 )
 
-// procInfo is one row from `ps -Ao pid=,ppid=,comm=,args=`.
 type procInfo struct {
 	PID     int
 	PPID    int
