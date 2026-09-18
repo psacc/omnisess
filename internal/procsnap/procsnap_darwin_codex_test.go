@@ -395,7 +395,7 @@ func TestParseCodexLsof(t *testing.T) {
 		"n" + filepath.Join(dir, "2026", "06", "09") + "/other.log", // wrong suffix
 	}, "\n") + "\n"
 
-	got, err := parseCodexLsof([]byte(raw), dir)
+	got, err := parseCodexLsof([]byte(raw), dir, filepath.Join(filepath.Dir(dir), "thread-writer-locks"))
 	if err != nil {
 		t.Fatalf("parseCodexLsof: %v", err)
 	}

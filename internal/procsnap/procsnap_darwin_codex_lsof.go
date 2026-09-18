@@ -16,13 +16,9 @@ type codexProc struct {
 	threadIDs []string
 }
 
-func parseCodexLsof(raw []byte, sessionsDir string, lockDirs ...string) (map[int]codexProc, error) {
+func parseCodexLsof(raw []byte, sessionsDir, lockDir string) (map[int]codexProc, error) {
 	out := map[int]codexProc{}
 	prefix := sessionsDir + string(filepath.Separator)
-	lockDir := filepath.Join(filepath.Dir(sessionsDir), "thread-writer-locks")
-	if len(lockDirs) > 0 {
-		lockDir = lockDirs[0]
-	}
 	var pid int
 	var fd string
 	scanner := bufio.NewScanner(bytes.NewReader(raw))
