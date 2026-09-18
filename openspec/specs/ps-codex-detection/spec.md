@@ -3,18 +3,22 @@
 ## ADDED Requirements
 
 ### Requirement: Live codex sessions appear in omnisess ps
-`omnisess ps` SHALL list live Codex sessions alongside Claude sessions in the merged process tree. A codex session is live when a running process whose executable basename is `codex` holds a rollout file (`~/.codex/sessions/**/rollout-*-<uuid>.jsonl`) open.
+`omnisess ps` SHALL list live Codex sessions alongside Claude sessions in the merged process tree. A codex session is live when a running process whose executable basename is `codex` holds its thread-writer lock or rollout file open.
 
 #### Scenario: Codex TUI session is listed
 - **WHEN** a codex TUI process is running and holds its rollout JSONL open
 - **THEN** `omnisess ps` renders a leaf labeled `codex` with the session's short id, project basename, entrypoint, and age, under the process's ancestor chain
+
+#### Scenario: App-server owns a thread without an open rollout
+- **WHEN** a codex app-server holds `~/.codex/thread-writer-locks/<uuid>.lock` open but not the matching rollout
+- **THEN** the snapshot contains that exact session under the app-server PID
 
 #### Scenario: No codex processes running
 - **WHEN** no process with executable basename `codex` exists
 - **THEN** `omnisess ps` performs no lsof invocation and lists only claude sessions
 
 #### Scenario: App-server with multiple live threads
-- **WHEN** a single codex process holds N rollout files open
+- **WHEN** a single codex process holds N distinct thread locks or rollout files open
 - **THEN** the snapshot contains N codex sessions sharing that PID
 
 ### Requirement: Session metadata from rollout session_meta with filename fallback

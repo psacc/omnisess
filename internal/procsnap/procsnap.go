@@ -1,8 +1,3 @@
-// Package procsnap enumerates live AI coding sessions by correlating
-// on-disk session state with the running process table: Claude Code via
-// ~/.claude/sessions/<PID>.json registry files, Codex via rollout JSONL
-// files held open under ~/.codex/sessions. macOS only; other platforms
-// return ErrUnsupported.
 package procsnap
 
 import (

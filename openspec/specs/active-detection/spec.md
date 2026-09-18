@@ -22,15 +22,21 @@ A Claude Code session SHALL be reported active iff a `~/.claude/sessions/<PID>.j
 - **WHEN** the snapshot is available (macOS, no enumeration error)
 - **THEN** session `S` is NOT active
 
-### Requirement: Codex activeness comes from the lsof rollout correlation
+### Requirement: Codex activeness comes from exact lsof correlations
 
-A Codex session SHALL be reported active iff a live codex process holds the session's rollout JSONL open (the same correlation `ps` uses).
+A Codex session SHALL be reported active iff a live codex process holds the session's thread-writer lock or rollout JSONL open (the same correlation `ps` uses).
 
 #### Scenario: held rollout file
 
 - **GIVEN** a codex process holding `rollout-...-<id>.jsonl` open for session `<id>`
 - **WHEN** `active` evaluates that session
 - **THEN** it is active
+
+#### Scenario: held thread-writer lock
+
+- **GIVEN** a codex process holding `thread-writer-locks/<id>.lock` open for session `<id>`
+- **WHEN** `active` evaluates that session
+- **THEN** it is active even when no process holds its rollout open
 
 ### Requirement: One snapshot per CLI invocation
 

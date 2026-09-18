@@ -18,11 +18,6 @@ import (
 	"time"
 )
 
-// Codex has no PID registry. The correlation primitive is instead that every
-// live codex session holds its rollout JSONL open for the session's lifetime:
-// candidate codex PIDs come from the shared ps snapshot, and one lsof call
-// maps each PID to the rollout file(s) it has open under ~/.codex/sessions.
-
 // warnW receives non-fatal codex-enumeration warnings. Injectable so tests
 // can assert warning content instead of polluting test output.
 var warnW io.Writer = os.Stderr
@@ -97,6 +92,7 @@ func codexSessions(procs map[int]procInfo) []Session {
 	var out []Session
 	for _, pid := range pids {
 		cp := byPID[pid]
+		seen := map[string]bool{}
 		for _, rollout := range cp.rollouts {
 			id, started, fnOK := parseRolloutFilename(rollout)
 			meta, metaErr := readCodexSessionMeta(rollout)
@@ -132,6 +128,29 @@ func codexSessions(procs map[int]procInfo) []Session {
 				fmt.Fprintf(warnW, "procsnap: reading %s: %v\n", rollout, metaErr)
 			}
 			out = append(out, s)
+			seen[s.SessionID] = true
+		}
+		for _, id := range cp.threadIDs {
+			if seen[id] {
+				continue
+			}
+			s := Session{Tool: ToolCodex, PID: pid, SessionID: id, CWD: cp.cwd,
+				Ancestors: walkAncestors(pid, procs)}
+			matches, _ := filepath.Glob(filepath.Join(dir, "*", "*", "*", "*-"+id+".jsonl"))
+			if len(matches) > 0 {
+				meta, metaErr := readCodexSessionMeta(matches[0])
+				if metaErr == nil && meta.ID == id {
+					if meta.CWD != "" {
+						s.CWD = meta.CWD
+					}
+					s.Version = meta.Version
+					s.Entrypoint = meta.Originator
+					if !meta.StartedAt.IsZero() {
+						s.StartedAt = meta.StartedAt
+					}
+				}
+			}
+			out = append(out, s)
 		}
 	}
 	return out
@@ -153,7 +172,11 @@ func lsofErrDetail(err error) string {
 func codexCandidatePIDs(procs map[int]procInfo) []int {
 	var out []int
 	for pid, p := range procs {
-		if filepath.Base(p.Command) == "codex" {
+		command := filepath.Base(p.Command)
+		if fields := strings.Fields(p.Args); command != "codex" && len(fields) > 0 {
+			command = filepath.Base(fields[0])
+		}
+		if command == "codex" {
 			out = append(out, pid)
 		}
 	}
@@ -163,8 +186,9 @@ func codexCandidatePIDs(procs map[int]procInfo) []int {
 
 // codexProc is what lsof reveals about one candidate process.
 type codexProc struct {
-	cwd      string
-	rollouts []string
+	cwd       string
+	rollouts  []string
+	threadIDs []string
 }
 
 // parseCodexLsof parses `lsof -F pfn` output into a pid-indexed map,
@@ -174,6 +198,7 @@ type codexProc struct {
 func parseCodexLsof(raw []byte, sessionsDir string) (map[int]codexProc, error) {
 	out := map[int]codexProc{}
 	prefix := sessionsDir + string(filepath.Separator)
+	lockDir := filepath.Join(filepath.Dir(sessionsDir), "thread-writer-locks")
 	var pid int
 	var fd string
 	sc := bufio.NewScanner(bytes.NewReader(raw))
@@ -205,6 +230,11 @@ func parseCodexLsof(raw []byte, sessionsDir string) (map[int]codexProc, error) {
 				cp.cwd = name
 			case strings.HasPrefix(name, prefix) && strings.HasSuffix(name, ".jsonl"):
 				cp.rollouts = append(cp.rollouts, name)
+			case filepath.Dir(name) == lockDir && strings.HasSuffix(name, ".lock"):
+				id := strings.TrimSuffix(filepath.Base(name), ".lock")
+				if len(id) == rolloutUUIDLen {
+					cp.threadIDs = append(cp.threadIDs, id)
+				}
 			}
 			out[pid] = cp
 		}
