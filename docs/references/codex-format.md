@@ -51,9 +51,9 @@ Some process shapes also hold the matching rollout JSONL open.
 
 `internal/procsnap` uses this as follows (macOS only):
 
-1. Candidate PIDs = processes in the `ps` snapshot whose executable basename
-   is `codex` — matches the CLI TUI (`comm` = `codex`) and Codex.app's
-   app-server (`comm` = full bundle path ending in `/codex`).
+1. Candidate PIDs = processes in the `ps` snapshot whose `ucomm` is exactly
+   `codex`. This covers the CLI TUI and Codex.app app-server without parsing
+   argv.
 2. One `lsof -n -P -a -p <pid,...> -F pfn` call maps each PID to its cwd, open
    thread-writer locks, and open rollout JSONLs.
 3. Each distinct lock or rollout identifies one live session. A lock-only
