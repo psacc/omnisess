@@ -10,10 +10,8 @@ import (
 	"time"
 )
 
-// psRunnerFn is injectable. Real impl runs `ps -Ao pid=,ppid=,comm=,args=`
-// which emits one row per process with no header.
 var psRunnerFn = func() ([]byte, error) {
-	cmd := exec.Command("ps", "-Ao", "pid=,ppid=,comm=,args=")
+	cmd := exec.Command("ps", "-Ao", "pid=,ppid=,ucomm=,args=")
 	return cmd.Output()
 }
 

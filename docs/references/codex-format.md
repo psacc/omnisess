@@ -46,25 +46,23 @@ codex resume <session-id> # Resume by ID
 ## Live Process Detection (`omnisess ps`)
 
 Codex keeps no PID registry (unlike Claude's `~/.claude/sessions/<PID>.json`).
-The reliable correlation primitive: **every live codex session holds its
-rollout JSONL open for writing for the session's lifetime.**
+An active thread owns an open `~/.codex/thread-writer-locks/<session-id>.lock`.
+Some process shapes also hold the matching rollout JSONL open.
 
 `internal/procsnap` uses this as follows (macOS only):
 
-1. Candidate PIDs = processes in the `ps` snapshot whose executable basename
-   is `codex` — matches the CLI TUI (`comm` = `codex`) and Codex.app's
-   app-server (`comm` = full bundle path ending in `/codex`).
-2. One `lsof -n -P -a -p <pid,...> -F pfn` call maps each PID to its cwd and any
-   open `.jsonl` files under `~/.codex/sessions/`.
-3. Each held rollout = one live session. The `session_meta` first line
-   supplies id/cwd/version/originator/start; the filename is the fallback
-   for id/start, lsof cwd for cwd. A held `.jsonl` is skipped (with a
-   stderr warning) only when both the meta parse and the filename parse
-   fail — either alone is enough to identify a session.
+1. Candidate PIDs = processes in the `ps` snapshot whose `ucomm` is exactly
+   `codex`. This covers the CLI TUI and Codex.app app-server without parsing
+   argv.
+2. One `lsof -n -P -a -p <pid,...> -F pfn` call maps each PID to its cwd, open
+   thread-writer locks, and open rollout JSONLs.
+3. Each distinct lock or rollout identifies one live session. A lock-only
+   session locates its rollout by exact ID for metadata. The `session_meta`
+   first line supplies cwd/version/originator/start when available.
 
 Notes:
-- An idle Codex.app app-server holds no rollout open → correctly not listed.
-- An app-server with N live threads holds N rollouts → N sessions, one PID.
+- An idle Codex.app app-server holds no thread lock or rollout → correctly not listed.
+- An app-server with N live threads holds N locks → N sessions, one PID.
 - lsof failure degrades gracefully: stderr warning, claude-only output.
 
 ## Status

@@ -54,7 +54,7 @@ func codexProcs() map[int]procInfo {
 		1:    {PID: 1, PPID: 0, Command: "launchd", Args: "/sbin/launchd"},
 		70:   {PID: 70, PPID: 1, Command: "zsh", Args: "-zsh"},
 		7001: {PID: 7001, PPID: 70, Command: "codex", Args: "codex --yolo"},
-		7002: {PID: 7002, PPID: 1, Command: "/Applications/Codex.app/Contents/Resources/codex", Args: "codex app-server"},
+		7002: {PID: 7002, PPID: 1, Command: "codex", Args: "/Applications/Codex.app/Contents/Resources/codex app-server"},
 		7003: {PID: 7003, PPID: 70, Command: "codex", Args: "codex"},
 		8000: {PID: 8000, PPID: 70, Command: "vim", Args: "vim notes.txt"},
 	}
@@ -395,7 +395,7 @@ func TestParseCodexLsof(t *testing.T) {
 		"n" + filepath.Join(dir, "2026", "06", "09") + "/other.log", // wrong suffix
 	}, "\n") + "\n"
 
-	got, err := parseCodexLsof([]byte(raw), dir)
+	got, err := parseCodexLsof([]byte(raw), dir, filepath.Join(filepath.Dir(dir), "thread-writer-locks"))
 	if err != nil {
 		t.Fatalf("parseCodexLsof: %v", err)
 	}

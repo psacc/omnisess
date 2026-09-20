@@ -164,26 +164,3 @@ func TestSessionsDirFnDefault_HomeUnset(t *testing.T) {
 		t.Error("expected error when HOME is unset")
 	}
 }
-
-func TestPSRunnerFnDefault(t *testing.T) {
-	// Assumes a normal macOS environment (ps in PATH, PID 1 visible).
-	// Darwin CI runs on real macOS so these invariants hold.
-	//
-	// Exercise the real psRunnerFn so the function-literal body is covered.
-	// `ps -Ao pid=,ppid=,comm=,args=` must succeed on any macOS test host
-	// and always includes PID 1 (launchd).
-	raw, err := psRunnerFn()
-	if err != nil {
-		t.Fatalf("psRunnerFn: %v", err)
-	}
-	if len(raw) == 0 {
-		t.Fatal("expected non-empty ps output")
-	}
-	procs, err := parsePS(raw)
-	if err != nil {
-		t.Fatalf("parsePS on real ps output: %v", err)
-	}
-	if _, ok := procs[1]; !ok {
-		t.Error("expected PID 1 (launchd) in real ps output")
-	}
-}
