@@ -33,6 +33,8 @@ type sessionLine struct {
 	CWD           string          `json:"cwd"`
 	GitBranch     string          `json:"gitBranch"`
 	ToolUseResult json.RawMessage `json:"toolUseResult"`
+	CustomTitle   string          `json:"customTitle"`
+	AITitle       string          `json:"aiTitle"`
 }
 
 // messagePayload holds the role, content, model, and usage block from the

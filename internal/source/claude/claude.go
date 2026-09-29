@@ -2,9 +2,11 @@ package claude
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -267,6 +269,7 @@ type historyPeek struct {
 	entrypoint      string
 	kind            string
 	tmuxSession     string
+	sessionTitle    string
 	branch          string
 	model           string
 }
@@ -349,21 +352,22 @@ func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 		preview := detect.Truncate(entry.Display, 120)
 
 		sess := model.Session{
-			ID:          entry.SessionID,
-			Tool:        model.ToolClaude,
-			Project:     entry.Project,
-			Title:       preview,
-			StartedAt:   entry.StartedAt,
-			UpdatedAt:   p.updatedAt,
-			Active:      p.active,
-			Status:      p.status,
-			Name:        p.name,
-			Entrypoint:  p.entrypoint,
-			Kind:        p.kind,
-			TmuxSession: p.tmuxSession,
-			Preview:     preview,
-			Branch:      p.branch,
-			Model:       p.model,
+			ID:           entry.SessionID,
+			Tool:         model.ToolClaude,
+			Project:      entry.Project,
+			Title:        preview,
+			StartedAt:    entry.StartedAt,
+			UpdatedAt:    p.updatedAt,
+			Active:       p.active,
+			Status:       p.status,
+			Name:         p.name,
+			Entrypoint:   p.entrypoint,
+			Kind:         p.kind,
+			TmuxSession:  p.tmuxSession,
+			SessionTitle: p.sessionTitle,
+			Preview:      preview,
+			Branch:       p.branch,
+			Model:        p.model,
 		}
 
 		sessions = append(sessions, sess)
@@ -395,21 +399,22 @@ func (s *claudeSource) List(opts source.ListOptions) ([]model.Session, error) {
 		}
 
 		sess := model.Session{
-			ID:          orphan.SessionID,
-			Tool:        model.ToolClaude,
-			Project:     orphan.Project,
-			Title:       orphan.Preview,
-			StartedAt:   orphan.UpdatedAt, // best we have
-			UpdatedAt:   updatedAt,
-			Active:      orphan.Active,
-			Status:      orphan.Status,
-			Name:        orphan.Name,
-			Entrypoint:  orphan.Entrypoint,
-			Kind:        orphan.Kind,
-			TmuxSession: orphan.TmuxSession,
-			Preview:     orphan.Preview,
-			Branch:      orphan.Branch,
-			Model:       orphan.Model,
+			ID:           orphan.SessionID,
+			Tool:         model.ToolClaude,
+			Project:      orphan.Project,
+			Title:        orphan.Preview,
+			StartedAt:    orphan.UpdatedAt, // best we have
+			UpdatedAt:    updatedAt,
+			Active:       orphan.Active,
+			Status:       orphan.Status,
+			Name:         orphan.Name,
+			Entrypoint:   orphan.Entrypoint,
+			Kind:         orphan.Kind,
+			TmuxSession:  orphan.TmuxSession,
+			SessionTitle: orphan.SessionTitle,
+			Preview:      orphan.Preview,
+			Branch:       orphan.Branch,
+			Model:        orphan.Model,
 		}
 
 		sessions = append(sessions, sess)
@@ -481,25 +486,27 @@ func peekHistoryEntry(entry sessionEntry, claudeRunning bool, snap procsnap.Snap
 	// Try to extract branch and model from the session file header
 	// without parsing the entire file: read just enough for metadata.
 	out.branch, out.model = peekSessionMetadata(out.sessionFilePath)
+	out.sessionTitle = peekSessionTitle(out.sessionFilePath)
 
 	return out
 }
 
 // orphanSession holds data for a session file found on disk but not in history.jsonl.
 type orphanSession struct {
-	SessionID   string
-	Project     string
-	FilePath    string
-	UpdatedAt   time.Time
-	Preview     string
-	Branch      string
-	Model       string
-	Active      bool
-	Status      string
-	Name        string
-	Entrypoint  string
-	Kind        string
-	TmuxSession string
+	SessionID    string
+	Project      string
+	FilePath     string
+	UpdatedAt    time.Time
+	Preview      string
+	Branch       string
+	Model        string
+	Active       bool
+	Status       string
+	Name         string
+	Entrypoint   string
+	Kind         string
+	TmuxSession  string
+	SessionTitle string
 }
 
 // findOrphanSessions scans ~/.claude/projects/*/*.jsonl for session files
@@ -579,6 +586,7 @@ func peekOrphanFile(match, sessionID, project string, claudeRunning bool, snap p
 	}
 	out.Branch, out.Model = peekSessionMetadata(match)
 	out.Preview = peekFirstUserMessage(match)
+	out.SessionTitle = peekSessionTitle(match)
 	if snapOK {
 		live, ok := snap.Lookup(sessionID)
 		out.Active = ok
@@ -680,6 +688,39 @@ func peekSessionMetadata(path string) (branch, mdl string) {
 	return branch, mdl
 }
 
+const titleTailBytes = 64 * 1024
+
+func peekSessionTitle(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	_, _ = f.Seek(-titleTailBytes, io.SeekEnd)
+	tail, _ := io.ReadAll(f)
+
+	var custom, ai string
+	for _, line := range bytes.Split(tail, []byte("\n")) {
+		if !bytes.Contains(line, []byte(`-title"`)) {
+			continue
+		}
+		var sl sessionLine
+		if jsonUnmarshalFast(line, &sl) != nil {
+			continue
+		}
+		switch sl.Type {
+		case "custom-title":
+			custom = sl.CustomTitle
+		case "ai-title":
+			ai = sl.AITitle
+		}
+	}
+	if custom != "" {
+		return custom
+	}
+	return ai
+}
+
 // jsonUnmarshalFast is a thin wrapper for json.Unmarshal used by peekSessionMetadata.
 func jsonUnmarshalFast(data []byte, v interface{}) error {
 	return jsonUnmarshal(data, v)
@@ -738,18 +779,19 @@ func (s *claudeSource) Get(sessionID string) (*model.Session, error) {
 	active, status := activeStatus(fullID, sessionFilePath)
 
 	sess := &model.Session{
-		ID:        fullID,
-		Tool:      model.ToolClaude,
-		Project:   project,
-		Branch:    branch,
-		Title:     title,
-		Model:     mdl,
-		StartedAt: startedAt,
-		UpdatedAt: updatedAt,
-		Active:    active,
-		Status:    status,
-		Messages:  messages,
-		Preview:   preview,
+		ID:           fullID,
+		Tool:         model.ToolClaude,
+		Project:      project,
+		Branch:       branch,
+		Title:        title,
+		Model:        mdl,
+		StartedAt:    startedAt,
+		UpdatedAt:    updatedAt,
+		Active:       active,
+		Status:       status,
+		Messages:     messages,
+		Preview:      preview,
+		SessionTitle: peekSessionTitle(sessionFilePath),
 	}
 
 	return sess, nil

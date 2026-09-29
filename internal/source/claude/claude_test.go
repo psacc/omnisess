@@ -2836,3 +2836,43 @@ func TestGet_SnapshotRoutesActive(t *testing.T) {
 		t.Errorf("Get = (active=%v, status=%q), want (true, waiting)", sess.Active, sess.Status)
 	}
 }
+
+func TestPeekSessionTitle(t *testing.T) {
+	custom := func(s string) string {
+		return `{"type":"custom-title","customTitle":"` + s + `","sessionId":"x"}` + "\n"
+	}
+	ai := func(s string) string { return `{"type":"ai-title","aiTitle":"` + s + `","sessionId":"x"}` + "\n" }
+	user := `{"type":"user","message":{"role":"user","content":"hi"}}` + "\n"
+	padding := `{"type":"user","message":{"role":"user","content":"` + strings.Repeat("a", titleTailBytes) + `"}}` + "\n"
+
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{"no title falls back to empty", user, ""},
+		{"ai title only", user + ai("Fix login"), "Fix login"},
+		{"custom title beats ai title", custom("my-name") + ai("Fix login"), "my-name"},
+		{"last custom title wins", custom("old") + user + custom("new"), "new"},
+		{"empty custom title falls back to ai", ai("Fix login") + custom(""), "Fix login"},
+		{"malformed title line skipped", `{"type":"custom-title",` + "\n" + ai("ok"), "ok"},
+		{"title before tail window ignored", custom("stale") + padding + ai("fresh"), "fresh"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "s.jsonl")
+			if err := os.WriteFile(path, []byte(tt.content), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if got := peekSessionTitle(path); got != tt.want {
+				t.Errorf("peekSessionTitle = %q, want %q", got, tt.want)
+			}
+		})
+	}
+
+	t.Run("missing file", func(t *testing.T) {
+		if got := peekSessionTitle("/nonexistent/file.jsonl"); got != "" {
+			t.Errorf("got %q, want empty", got)
+		}
+	})
+}
