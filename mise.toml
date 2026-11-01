@@ -1,0 +1,6 @@
+[tools]
+go = "1.25.0"
+"aqua:golangci/golangci-lint" = "2.14.0"
+
+[settings]
+lockfile = true

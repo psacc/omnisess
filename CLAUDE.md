@@ -62,6 +62,8 @@ docs/design-docs/           Design decisions
 
 ## Build & Test
 
+Use `mise install && mise exec -- make check` for the pinned toolchain; the host or container supplies GNU make and a C compiler.
+
 ```bash
 make setup    # install git hooks (one-time)
 make check    # full pre-commit: fmt + vet + lint + test
