@@ -6,6 +6,10 @@ Aggregate AI coding sessions across Claude Code, Cursor, Codex, and GitHub Copil
 
 ---
 
+## Development environment
+
+With [mise](https://mise.jdx.dev/) installed, run `mise install && mise exec -- make check` to use the pinned Go and golangci-lint versions. The host or container must supply GNU make and a C compiler for race-enabled tests.
+
 ## Install
 
 ```bash
