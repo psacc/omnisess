@@ -62,6 +62,8 @@ docs/design-docs/           Design decisions
 
 ## Build & Test
 
+Linux CI runs on the ephemeral psacc-node pool with the same check and coverage gates.
+
 Use `mise install && mise exec -- make check` for the pinned toolchain; the host or container supplies GNU make and a C compiler.
 
 ```bash
