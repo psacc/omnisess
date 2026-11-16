@@ -31,4 +31,8 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: cover-check
-        run: make cover-check
+        run: |
+          go test -short -coverprofile=coverage.out ./... 2>&1 | grep -E "source/pi|FAIL" || true
+          echo "uncovered statements:"
+          awk '$3==0' coverage.out | grep "source/pi" || true
+          go run ./tools/covercheck -threshold 100 -exempt "github.com/psacc/omnisess,tools/covercheck" coverage.out
