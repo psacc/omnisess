@@ -1,0 +1,3 @@
+{"type":"session","version":3,"id":"01900000-0000-7000-8000-000000000002","timestamp":"2026-01-03T03:04:05.000Z","cwd":"/Users/foo/prj/other"}
+{"type":"model_change","id":"e1","parentId":null,"timestamp":"2026-01-03T03:04:06.000Z","provider":"","modelId":"bare-model"}
+{"type":"message","id":"e2","parentId":"e1","timestamp":"2026-01-03T03:04:08.000Z","message":{"role":"user","content":"Other project question","timestamp":1767409448000}}

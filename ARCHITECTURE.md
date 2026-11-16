@@ -6,7 +6,8 @@
 ## Data Flow
 
 ```
-Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.copilot/
+Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.copilot/,
+                   ~/.local/share/opencode/, ~/.pi/agent/sessions/
                   + darwin only: ~/Library/Application Support/Code/User/workspaceStorage/)
         │
         ▼
@@ -44,6 +45,8 @@ Local filesystem (~/.claude/, ~/.cursor/, ~/.codex/, ~/.copilot/
 - **internal/source/cursor/** — Reads `ai-tracking.db` for metadata, `agent-transcripts/*.txt` for content.
 - **internal/source/codex/** — Parses `~/.codex/history.jsonl` + session JSONL files.
 - **internal/source/copilot/** — Parses `~/.copilot/session-state/<uuid>/{events.jsonl,vscode.metadata.json}` for GitHub Copilot CLI sessions.
+- **internal/source/opencode/** — Reads OpenCode's SQLite database (`<XDG_DATA_HOME>/opencode/opencode.db`) read-only, preferring the v2 `session_v2`/`session_message` schema and falling back to legacy `session`/`message`/`part`.
+- **internal/source/pi/** — Parses pi JSONL transcripts under `~/.pi/agent/sessions/<encoded-cwd>/<timestamp>_<id>.jsonl` (header + append-only entries). `List` peeks at most 200 lines per file.
 - **internal/index/** — SQLite transcript cache. `Index` interface (`EnsureSession`, `QuerySession`, `QueryWindow`), OTel GenAI-aligned schema, `(mtime, size, has_full_payloads)` invalidation key, one transaction per session. Source-agnostic — converts via `SessionFromModel(*model.Session, providerName)`.
 - **internal/detect/process.go** — `IsProcessRunning(name)` and `IsFileRecentlyModified(path, threshold)`. Since #74 this is the *fallback* activeness heuristic only (Cursor/Copilot, and Claude/Codex when `procsnap` is unavailable).
 - **internal/procsnap/** — Live-process correlation for Claude and Codex sessions (macOS only). `Enumerate()` scans `~/.claude/sessions/<PID>.json` for Claude (filters alive PIDs) and, for Codex, maps `codex` processes to the rollout JSONLs they hold open via one `lsof` call, parsing each rollout's `session_meta` first line. Walks ancestors via `ps`. Returns `ErrUnsupported` off darwin. `Cached()` memoizes one snapshot per CLI run — the single authority for "active" that the claude/codex sources, `active`, `list`, and `ps` all share (#74).

@@ -1,6 +1,6 @@
 # omnisess
 
-Aggregate AI coding sessions across Claude Code, Cursor, Codex, and GitHub Copilot CLI — search, list, and detect active sessions from one place.
+Aggregate AI coding sessions across Claude Code, Cursor, Codex, GitHub Copilot CLI, OpenCode, and pi — search, list, and detect active sessions from one place.
 
 [![CI](https://github.com/psacc/omnisess/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/psacc/omnisess/actions/workflows/ci.yml)
 
@@ -103,6 +103,8 @@ claude:5c3f2742  ~/prj/myapp  (process alive, modified 47s ago)
 | Cursor              | Full   |
 | Codex               | Full   |
 | GitHub Copilot CLI  | Full   |
+| OpenCode            | Full   |
+| pi                  | Full   |
 
 ---
 

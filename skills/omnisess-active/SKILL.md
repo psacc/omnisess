@@ -1,7 +1,7 @@
 ---
 name: active
 description: |
-  Show currently active AI coding sessions (Claude Code, Cursor, Codex, GitHub Copilot CLI).
+  Show currently active AI coding sessions (Claude Code, Cursor, Codex, GitHub Copilot CLI, OpenCode, pi).
   A session is active if a live process is attributable to it: Claude Code via the
   ~/.claude/sessions registry (with per-session status: busy/idle/waiting/...), Codex via
   its open rollout file — the same correlation `omnisess ps` uses, so the two reconcile.

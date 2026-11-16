@@ -1,7 +1,7 @@
 ---
 name: list
 description: |
-  List AI coding sessions across all sources (Claude Code, Cursor, Codex, GitHub Copilot CLI).
+  List AI coding sessions across all sources (Claude Code, Cursor, Codex, GitHub Copilot CLI, OpenCode, pi).
   Use this skill when asked to list sessions, show recent sessions, filter sessions by tool,
   or get an overview of coding activity.
   Trigger phrases: "list sessions", "show sessions", "recent sessions", "sessions from cursor",
