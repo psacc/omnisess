@@ -9,7 +9,7 @@ Last updated: 2026-06-10
 
 # omnisess Roadmap
 
-CLI that aggregates AI coding sessions across Claude Code, Cursor, Codex, and GitHub Copilot CLI. See `CLAUDE.md` for invariants and the dev loop, `ARCHITECTURE.md` for the codemap.
+CLI that aggregates AI coding sessions across Claude Code, Cursor, Codex, GitHub Copilot CLI, OpenCode, and pi. See `CLAUDE.md` for invariants and the dev loop, `ARCHITECTURE.md` for the codemap.
 
 ## Shipped (summary)
 

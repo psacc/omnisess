@@ -1,0 +1,2 @@
+{"type":"session","version":3,"id":"01900000-0000-7000-8000-000000000003","timestamp":"2026-01-04T03:04:05.000Z","cwd":"/Users/foo/prj/top"}
+{"type":"message","id":"e1","parentId":null,"timestamp":"2026-01-04T03:04:08.000Z","message":{"role":"user","content":[{"type":"text","text":"Top level session"}],"timestamp":1767495848000}}

@@ -1,6 +1,6 @@
 # omnisess — AI Session Aggregator
 
-CLI tool that aggregates AI coding sessions across Claude Code, Cursor, Codex, and GitHub Copilot CLI. Search, list, and detect active sessions from one place.
+CLI tool that aggregates AI coding sessions across Claude Code, Cursor, Codex, GitHub Copilot CLI, OpenCode, and pi. Search, list, and detect active sessions from one place.
 
 ## Tech Stack
 
@@ -11,7 +11,7 @@ CLI tool that aggregates AI coding sessions across Claude Code, Cursor, Codex, a
 
 ## Domain Glossary
 
-- **Source**: A tool that produces AI coding sessions (Claude Code, Cursor, Codex, GitHub Copilot CLI). Each implements the `Source` interface in `internal/source/source.go`.
+- **Source**: A tool that produces AI coding sessions (Claude Code, Cursor, Codex, GitHub Copilot CLI, OpenCode, pi). Each implements the `Source` interface in `internal/source/source.go`.
 - **Session**: A single conversation between a user and an AI coding assistant. Has an ID, tool name, project path, messages, and timestamps.
 - **Message**: A single turn in a session (user, assistant, or tool role).
 - **SearchResult**: A Session + matched message snippets.
@@ -28,6 +28,8 @@ internal/source/claude/     Claude Code JSONL parser
 internal/source/cursor/     Cursor transcript + SQLite parser
 internal/source/codex/      Codex JSONL parser
 internal/source/copilot/    GitHub Copilot CLI parser (events.jsonl + VS Code workspaceStorage)
+internal/source/opencode/   OpenCode parser (SQLite: session_v2/session_message, legacy session/message/part)
+internal/source/pi/         pi parser (per-session JSONL under ~/.pi/agent/sessions/)
 internal/detect/            Process detection utilities
 internal/output/            Table and JSON formatters
 internal/procsnap/          Live Claude/Codex process correlation (macOS only)

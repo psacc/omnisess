@@ -16,6 +16,8 @@ import (
 	_ "github.com/psacc/omnisess/internal/source/codex"
 	_ "github.com/psacc/omnisess/internal/source/copilot"
 	_ "github.com/psacc/omnisess/internal/source/cursor"
+	_ "github.com/psacc/omnisess/internal/source/opencode"
+	_ "github.com/psacc/omnisess/internal/source/pi"
 )
 
 var (
@@ -32,7 +34,7 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "omnisess",
 	Short: "Aggregate AI coding sessions across tools",
-	Long:  "Search, list, and monitor AI coding sessions from Claude Code, Cursor, Codex, and GitHub Copilot CLI.",
+	Long:  "Search, list, and monitor AI coding sessions from Claude Code, Cursor, Codex, GitHub Copilot CLI, OpenCode, and pi.",
 }
 
 func Execute() {
@@ -45,7 +47,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&flagJSON, "json", false, "Output as JSON")
 	rootCmd.PersistentFlags().BoolVar(&flagAxi, "axi", false,
 		"Agent-ergonomic output: minimal fields + aggregate + next-step hints, compact JSON (also OMNISESS_AXI env). Applies to list/active.")
-	rootCmd.PersistentFlags().StringVar(&flagTool, "tool", "", "Filter by tool (claude, cursor, codex, copilot)")
+	rootCmd.PersistentFlags().StringVar(&flagTool, "tool", "", "Filter by tool (claude, cursor, codex, copilot, opencode, pi)")
 	rootCmd.PersistentFlags().StringVar(&flagSince, "since", "", "Only sessions updated within duration (e.g., 24h, 7d, 2w)")
 	rootCmd.PersistentFlags().StringVar(&flagDate, "date", "", "Only sessions updated on this calendar day (YYYY-MM-DD, local time). Combines with --since by intersection.")
 	rootCmd.PersistentFlags().IntVar(&flagLimit, "limit", 0, "Max results (0 = unlimited)")

@@ -37,6 +37,16 @@ func IsToolRunning(toolName string) bool {
 		// `gh copilot` extension. -f matches against the full command line.
 		cmd := exec.Command("pgrep", "-f", "copilot")
 		return cmd.Run() == nil
+	case "opencode":
+		// The OpenCode CLI binary is literally named "opencode".
+		cmd := exec.Command("pgrep", "-x", "opencode")
+		return cmd.Run() == nil
+	case "pi":
+		// pi ships both as a bun-compiled binary (argv contains
+		// "pi-coding-agent") and as a node script (`.../bin/pi` resolved
+		// through a shebang), so match the full command line.
+		cmd := exec.Command("pgrep", "-f", "pi-coding-agent|/bin/pi")
+		return cmd.Run() == nil
 	default:
 		return false
 	}
