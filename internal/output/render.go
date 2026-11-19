@@ -39,6 +39,7 @@ func sanitizeSession(s *model.Session) model.Session {
 	out.Model = sanitizeString(out.Model)
 	out.Status = sanitizeString(out.Status)
 	out.Name = sanitizeString(out.Name)
+	out.SessionTitle = sanitizeString(out.SessionTitle)
 
 	if len(s.Messages) > 0 {
 		out.Messages = make([]model.Message, len(s.Messages))
@@ -171,6 +172,9 @@ func renderTable(w io.Writer, sessions []model.Session) {
 		// obi harness) is more identifying than the first-message preview, so
 		// prefer it when present.
 		previewText := s.Preview
+		if s.SessionTitle != "" {
+			previewText = s.SessionTitle
+		}
 		if s.Name != "" {
 			previewText = s.Name
 		}
@@ -215,6 +219,9 @@ func statusCell(s model.Session) string {
 
 func renderSessionDetail(w io.Writer, s *model.Session) {
 	fmt.Fprintf(w, "Session: %s (%s)\n", s.ShortID(), s.Tool)
+	if s.SessionTitle != "" {
+		fmt.Fprintf(w, "Title:   %s\n", s.SessionTitle)
+	}
 	fmt.Fprintf(w, "Project: %s\n", s.Project)
 	if s.Branch != "" {
 		fmt.Fprintf(w, "Branch:  %s\n", s.Branch)

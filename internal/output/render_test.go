@@ -821,3 +821,40 @@ func TestRenderSessionDetail_Status(t *testing.T) {
 		t.Error("expected Updated line in detail view")
 	}
 }
+
+func TestRenderTable_SessionTitle(t *testing.T) {
+	updated := time.Date(2026, 6, 9, 18, 30, 0, 0, time.Local)
+	sessions := []model.Session{
+		{ID: "aaaaaaaa-0001", Tool: model.ToolClaude, UpdatedAt: updated, SessionTitle: "Fix login flow", Preview: "first prompt"},
+		{ID: "bbbbbbbb-0002", Tool: model.ToolClaude, UpdatedAt: updated, Preview: "untitled preview"},
+		{ID: "cccccccc-0003", Tool: model.ToolClaude, UpdatedAt: updated, Active: true, Name: "live name", SessionTitle: "disk title"},
+	}
+
+	var buf bytes.Buffer
+	renderTable(&buf, sessions)
+	got := buf.String()
+
+	for _, want := range []string{"Fix login flow", "untitled preview", "live name"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("expected %q in table", want)
+		}
+	}
+	for _, unwanted := range []string{"first prompt", "disk title"} {
+		if strings.Contains(got, unwanted) {
+			t.Errorf("did not expect %q in table", unwanted)
+		}
+	}
+}
+
+func TestRenderSessionDetail_SessionTitle(t *testing.T) {
+	var titled, untitled bytes.Buffer
+	renderSessionDetail(&titled, &model.Session{ID: "a", Tool: model.ToolClaude, SessionTitle: "Fix login flow"})
+	renderSessionDetail(&untitled, &model.Session{ID: "b", Tool: model.ToolClaude})
+
+	if !strings.Contains(titled.String(), "Title:   Fix login flow") {
+		t.Error("expected Title line for a titled session")
+	}
+	if strings.Contains(untitled.String(), "Title:") {
+		t.Error("expected no Title line for an untitled session")
+	}
+}

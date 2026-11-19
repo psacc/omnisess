@@ -42,6 +42,7 @@ One JSON object per line. Key fields:
 - Assistant messages include `model`, `costUSD`, `durationMs`
 - Tool use appears as content blocks with `type: "tool_use"` and `type: "tool_result"`
 - Lines may also have `type: "summary"` (context compression markers) — skip these for display
+- `{"type":"custom-title","customTitle":…}` and `{"type":"ai-title","aiTitle":…}` carry the native session title; Claude Code re-appends them near the end of the file. The last `customTitle` wins over the last `aiTitle`.
 
 ## Tool use, tool results, and `toolUseResult`
 
