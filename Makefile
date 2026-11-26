@@ -13,11 +13,11 @@ build: ## Build the omnisess binary
 TEST_SLOW_THRESHOLD ?= 1.0
 
 test: ## Run unit tests; fails if any test exceeds TEST_SLOW_THRESHOLD seconds
-	@go test -race -count=1 -short -v ./... 2>&1 | tee .test-output.log
+	@bash -o pipefail -c 'go test -race -count=1 -short -v ./... 2>&1 | tee .test-output.log'
 	@awk -v thr=$(TEST_SLOW_THRESHOLD) ' \
-	  /^--- (PASS|FAIL):/ { \
-	    t=$$3; gsub(/[()s]/,"",t); \
-	    if (t+0 > thr) { printf "SLOW (%.2fs > %.1fs): %s\n", t, thr, $$2; slow++ } \
+	  /^[[:space:]]*--- (PASS|FAIL):/ { \
+	    t=$$4; gsub(/[()s]/,"",t); \
+	    if (t+0 > thr) { printf "SLOW (%.2fs > %.1fs): %s\n", t, thr, $$3; slow++ } \
 	  } \
 	  END { if (slow) { printf "\n%d test(s) exceeded %.1fs threshold\n", slow, thr; exit 1 } }' \
 	  .test-output.log

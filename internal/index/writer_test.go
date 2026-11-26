@@ -202,9 +202,11 @@ func TestEnsureSession_CacheHit(t *testing.T) {
 	if err := idx.EnsureSession(src, "conv-cache", false, false, sess); err != nil {
 		t.Fatalf("first EnsureSession: %v", err)
 	}
+	// Seed an old timestamp so any unintended re-index is observable without waiting.
+	if _, err := idx.db.Exec("UPDATE session_metadata SET indexed_at=0 WHERE conversation_id='conv-cache'"); err != nil {
+		t.Fatal(err)
+	}
 	indexedAtBefore := countRows(t, idx.db, "SELECT indexed_at FROM session_metadata WHERE conversation_id='conv-cache'")
-	// Sleep one second so that if a re-index happens, indexed_at changes
-	time.Sleep(1100 * time.Millisecond)
 	if err := idx.EnsureSession(src, "conv-cache", false, false, sess); err != nil {
 		t.Fatalf("second EnsureSession: %v", err)
 	}
@@ -319,8 +321,6 @@ func TestEnsureSession_FullDowngradeIsNoOp(t *testing.T) {
 	if err := idx.EnsureSession(src, "conv-down", true, false, sess); err != nil {
 		t.Fatalf("first --full: %v", err)
 	}
-	// Wait so indexed_at would differ if rewritten
-	time.Sleep(1100 * time.Millisecond)
 	// Second call no --full, file unchanged → no-op
 	if err := idx.EnsureSession(src, "conv-down", false, false, sess); err != nil {
 		t.Fatalf("downgrade: %v", err)
@@ -386,11 +386,14 @@ func TestEnsureSession_RebuildForcesReindex(t *testing.T) {
 	if err := idx.EnsureSession(src, "conv-rb", false, false, sess); err != nil {
 		t.Fatalf("first: %v", err)
 	}
+	// Seed an old timestamp so the rebuild must change it without waiting.
+	if _, err := idx.db.Exec("UPDATE session_metadata SET indexed_at=0 WHERE conversation_id='conv-rb'"); err != nil {
+		t.Fatal(err)
+	}
 	var first int64
 	if err := idx.db.QueryRow("SELECT indexed_at FROM session_metadata WHERE conversation_id='conv-rb'").Scan(&first); err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(1100 * time.Millisecond)
 	if err := idx.EnsureSession(src, "conv-rb", false, true, sess); err != nil {
 		t.Fatalf("rebuild: %v", err)
 	}
